@@ -2316,6 +2316,12 @@ let currentMonitorDate = null;
 
 // 打开角色监测界面
 async function openCharacterMonitor() {
+  // 强制弹窗提示功能已锁定
+  await showCustomAlert('功能暂时锁定', '角色监测功能存在较多bug，正在修复中。\n\n为了保证您的使用体验，该功能暂时锁定，修复完成后将重新开放。\n\n感谢您的理解与支持！');
+  return;
+  
+  // 以下代码暂时禁用
+  /*
   if (!state.activeChatId) {
     await showCustomAlert('提示', '请先选择一个聊天对象');
     return;
@@ -2381,6 +2387,7 @@ async function openCharacterMonitor() {
       }
     }
   }
+  */
 }
 
 // 生成监测数据
@@ -29267,7 +29274,7 @@ ${chat.settings.myPersona}
     }
   }
 
-  // 显示系统通知
+  // 显示系统通知（每条消息独立通知）
   async function showSystemNotification(chatId, messageContent, options = {}) {
     console.log('[系统通知调试] showSystemNotification 被调用:', {
       chatId,
@@ -29303,11 +29310,14 @@ ${chat.settings.myPersona}
     const body = messageContent;
     const icon = chat.settings.aiAvatar || chat.settings.groupAvatar || 'https://s3plus.meituan.net/opapisdk/op_ticket_885190757_1758510900942_qdqqd_djw0z2.jpeg';
     
+    // 每条消息使用唯一的 tag，确保每条都显示
+    const uniqueTag = `chat-${chatId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
     console.log('[系统通知调试] 准备创建通知:', {
       title,
       body,
       icon,
-      tag: `chat-${chatId}-${Date.now()}`
+      tag: uniqueTag
     });
     
     try {
@@ -29325,9 +29335,9 @@ ${chat.settings.myPersona}
         body: body,
         icon: icon,
         badge: icon,
-        tag: `chat-${chatId}-${Date.now()}`,
+        tag: uniqueTag, // 使用唯一 tag
         requireInteraction: true, // 强制显示横幅
-        silent: false, // 必须有声音
+        silent: false, // 必须有声音才能显示横幅
         vibrate: [200, 100, 200, 100, 200], // 强震动
         renotify: true, // 强制重新通知
         data: { chatId },
@@ -29352,7 +29362,7 @@ ${chat.settings.myPersona}
     }
   }
 
-  // 处理系统通知（包含消息合并逻辑）
+  // 处理系统通知（每条消息单独通知，不合并）
   async function handleSystemNotification(chatId, messageContent) {
     console.log('[系统通知调试] handleSystemNotification 被调用:', {
       chatId,
@@ -29383,50 +29393,9 @@ ${chat.settings.myPersona}
     
     console.log('[系统通知调试] 检查通过，准备显示通知');
     
-    if (!config.mergeMessages?.enabled) {
-      console.log('[系统通知调试] 消息合并未启用，直接显示通知');
-      showSystemNotification(chatId, messageContent);
-      return;
-    }
-    
-    console.log('[系统通知调试] 消息合并已启用，处理合并逻辑');
-    
-    const now = Date.now();
-    
-    if (!messageQueue[chatId]) {
-      messageQueue[chatId] = [];
-    }
-    
-    messageQueue[chatId] = messageQueue[chatId].filter(
-      msg => now - msg.timestamp < config.mergeMessages.timeWindow * 1000
-    );
-    
-    messageQueue[chatId].push({ content: messageContent, timestamp: now });
-    
-    console.log('[系统通知调试] 消息队列状态:', {
-      chatId,
-      queueLength: messageQueue[chatId].length,
-      threshold: config.mergeMessages.threshold
-    });
-    
-    if (messageQueue[chatId].length >= config.mergeMessages.threshold) {
-      const chat = state.chats[chatId];
-      const mergedContent = `发来了 ${messageQueue[chatId].length} 条新消息`;
-      console.log('[系统通知调试] 达到合并阈值，显示合并通知');
-      showSystemNotification(chatId, mergedContent);
-      messageQueue[chatId] = [];
-      clearTimeout(mergeTimers[chatId]);
-    } else {
-      console.log('[系统通知调试] 未达到合并阈值，设置延迟显示');
-      clearTimeout(mergeTimers[chatId]);
-      mergeTimers[chatId] = setTimeout(() => {
-        console.log('[系统通知调试] 延迟时间到，显示队列中的消息');
-        messageQueue[chatId].forEach(msg => {
-          showSystemNotification(chatId, msg.content);
-        });
-        messageQueue[chatId] = [];
-      }, 5000);
-    }
+    // 每条消息都单独显示通知，不使用合并逻辑
+    console.log('[系统通知调试] 直接显示单条通知');
+    showSystemNotification(chatId, messageContent);
   }
 
   // 发送测试通知
@@ -41594,7 +41563,7 @@ ${recentHistoryContext}
     await showCustomAlert("正在准备分片导出...", "即将开始打包您的完整备份文件。文件将以ZIP格式流式下载，请勿关闭页面。");
 
   
-    const fileStream = streamSaver.createWriteStream(`EPhone-Sliced-Backup-${new Date().toISOString().split('T')[0]}.zip`);
+    const fileStream = streamSaver.createWriteStream(`330-EPhone-Sliced-Backup-${new Date().toISOString().split('T')[0]}.zip`);
     const zip = new JSZip();
 
   
@@ -41730,7 +41699,7 @@ ${recentHistoryContext}
     await showCustomAlert("正在准备...", "即将开始下载您的完整备份文件。下载过程中请勿关闭页面。");
 
 
-    const fileStream = streamSaver.createWriteStream(`EPhone-Full-Backup-Streamed-${new Date().toISOString().split('T')[0]}.json`);
+    const fileStream = streamSaver.createWriteStream(`330-EPhone-Full-Backup-Streamed-${new Date().toISOString().split('T')[0]}.json`);
     const writer = fileStream.getWriter();
     const encoder = new TextEncoder();
 
@@ -41805,7 +41774,7 @@ ${recentHistoryContext}
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `EPhone-Full-Backup-Legacy-${new Date().toISOString().split('T')[0]}.json`;
+      link.download = `330-EPhone-Full-Backup-Legacy-${new Date().toISOString().split('T')[0]}.json`;
       link.click();
       URL.revokeObjectURL(url);
 
@@ -49432,6 +49401,26 @@ ${recentHistoryWithUser}
       document.getElementById('offline-mode-options').style.display = e.target.checked ? 'block' : 'none';
     });
     document.getElementById('import-btn').addEventListener('click', () => document.getElementById('import-data-input').click());
+    
+    // 高级导入导出功能
+    document.getElementById('advanced-transfer-btn').addEventListener('click', () => {
+      document.getElementById('advanced-transfer-modal-330').classList.add('visible');
+    });
+    
+    document.getElementById('close-advanced-transfer-btn').addEventListener('click', () => {
+      document.getElementById('advanced-transfer-modal-330').classList.remove('visible');
+    });
+    
+    document.getElementById('export-to-tuk-btn').addEventListener('click', exportDataForTuK);
+    document.getElementById('import-from-tuk-btn').addEventListener('click', () => {
+      document.getElementById('import-from-tuk-input').click();
+    });
+    document.getElementById('import-from-tuk-input').addEventListener('change', (e) => {
+      if (e.target.files[0]) {
+        importFromTuKFormat(e.target.files[0]);
+      }
+    });
+    
     document.getElementById('time-perception-toggle').addEventListener('change', (e) => {
       document.getElementById('time-zone-group').style.display = e.target.checked ? 'block' : 'none';
     });
@@ -50442,6 +50431,31 @@ ${recentHistoryWithUser}
     // 角色监测按钮事件监听
     document.getElementById('character-monitor-btn')?.addEventListener('click', openCharacterMonitor);
     document.getElementById('monitor-back-btn')?.addEventListener('click', () => showScreen('chat-interface-screen'));
+    
+    // 日期选择按钮
+    document.getElementById('monitor-date-picker-btn')?.addEventListener('click', async () => {
+      if (!state.activeChatId) return;
+      
+      const dateInput = document.createElement('input');
+      dateInput.type = 'date';
+      dateInput.value = currentMonitorDate || formatMonitorDate(new Date());
+      dateInput.style.position = 'absolute';
+      dateInput.style.opacity = '0';
+      document.body.appendChild(dateInput);
+      
+      dateInput.addEventListener('change', async () => {
+        const selectedDate = dateInput.value;
+        await generateMonitorData(state.activeChatId, selectedDate, 'full');
+        document.body.removeChild(dateInput);
+      });
+      
+      dateInput.showPicker();
+    });
+    
+    // 设置按钮
+    document.getElementById('monitor-settings-btn')?.addEventListener('click', async () => {
+      await showCustomAlert('角色监测设置', '功能开发中，敬请期待！');
+    });
     
     document.getElementById('monitor-regenerate-btn')?.addEventListener('click', async () => {
       if (!currentMonitorData || !state.activeChatId) return;
@@ -56589,3 +56603,363 @@ if (deleteQuickRepliesBtn) {
     }
     await renderChatList();
   }
+
+
+// ============================================================
+// ▼▼▼ 330版本与兔K版本数据互通功能 ▼▼▼
+// ============================================================
+
+/**
+ * 【兼容兔K】将330版本的数据导出为兼容兔K版本的格式
+ */
+async function exportDataForTuK() {
+  await showCustomAlert("请稍候...", "正在为你准备兼容兔K版本的备份文件...");
+
+  const backupData = {
+    type: "EPhoneChunkedBackup",
+    version: 3,
+    exportedAt: Date.now(),
+    contains: [],
+    data: {}
+  };
+
+  try {
+    const [
+      chatsFromDB,
+      worldBooksFromDB,
+      userStickersFromDB,
+      apiConfigFromDB,
+      globalSettingsFromDB,
+      qzonePostsFromDB,
+      qzoneAlbumsFromDB,
+      qzonePhotosFromDB,
+      qzoneSettingsFromDB,
+      personaPresetsFromDB,
+      memoriesFromDB,
+      apiPresetsFromDB,
+      favoritesFromDB,
+      worldBookCategoriesFromDB,
+      callRecordsFromDB,
+      stickerCategoriesFromDB,
+      npcsFromDB,
+      doubanPostsFromDB
+    ] = await Promise.all([
+      db.chats.toArray(),
+      db.worldBooks.toArray(),
+      db.userStickers.toArray(),
+      db.apiConfig.get('main'),
+      db.globalSettings.get('main'),
+      db.qzonePosts.toArray(),
+      db.qzoneAlbums.toArray(),
+      db.qzonePhotos.toArray(),
+      db.qzoneSettings.get('main'),
+      db.personaPresets.toArray(),
+      db.memories.toArray(),
+      db.apiPresets.toArray(),
+      db.favorites.toArray(),
+      db.worldBookCategories.toArray(),
+      db.callRecords.toArray(),
+      db.stickerCategories.toArray(),
+      db.npcs.toArray(),
+      db.doubanPosts.toArray()
+    ]);
+
+    // 转换世界书格式：330版本的世界书需要转换为兔K版本的格式
+    const transformedWorldBooks = worldBooksFromDB.map(book => {
+      const newBookForTuK = { ...book };
+      // 兔K版本的世界书content是字符串，而不是数组
+      if (Array.isArray(newBookForTuK.content) && newBookForTuK.content.length > 0) {
+        // 将所有条目合并为一个字符串
+        newBookForTuK.content = newBookForTuK.content
+          .map(entry => entry.content || '')
+          .filter(c => c.trim())
+          .join('\n\n');
+      } else if (!newBookForTuK.content) {
+        newBookForTuK.content = '';
+      }
+      return newBookForTuK;
+    });
+
+    // 转换聊天数据：将NPC从独立表合并到chat的npcLibrary中
+    const transformedChats = chatsFromDB.map(chat => {
+      if (chat.isGroup) return chat;
+      
+      // 为每个单聊角色添加npcLibrary
+      const chatNpcs = npcsFromDB.filter(npc => 
+        npc.associatedWith && npc.associatedWith.includes(chat.id)
+      );
+      
+      return {
+        ...chat,
+        npcLibrary: chatNpcs.map(npc => ({
+          id: npc.id,
+          name: npc.name,
+          avatar: npc.avatar,
+          persona: npc.persona
+        }))
+      };
+    });
+
+    // 转换豆瓣帖子为圈子格式
+    const transformedForumPosts = doubanPostsFromDB.map(post => ({
+      id: post.id,
+      groupId: 1, // 默认分组ID
+      title: post.postTitle || '无标题',
+      content: post.content || '',
+      authorNickname: post.authorName || '未知作者',
+      timestamp: post.timestamp,
+      likes: post.likesCount || 0,
+      comments: (post.comments || []).map(c => ({
+        author: c.commenter,
+        content: c.text,
+        timestamp: Date.now()
+      }))
+    }));
+
+    // 如果有豆瓣帖子，创建一个默认的圈子分组
+    if (transformedForumPosts.length > 0) {
+      backupData.data.forumGroups = [{
+        id: 1,
+        name: '从330导入的小组',
+        description: '从330版本豆瓣数据导入',
+        icon: '📖'
+      }];
+      backupData.data.forumPosts = transformedForumPosts;
+      backupData.contains.push('forum');
+    }
+
+    // 组装数据
+    backupData.data = {
+      chats: transformedChats,
+      worldBooks: transformedWorldBooks,
+      worldBookCategories: worldBookCategoriesFromDB,
+      userStickers: userStickersFromDB,
+      userStickerCategories: stickerCategoriesFromDB,
+      apiConfig: apiConfigFromDB ? [apiConfigFromDB] : [],
+      globalSettings: globalSettingsFromDB ? [globalSettingsFromDB] : [],
+      qzoneSettings: qzoneSettingsFromDB ? [qzoneSettingsFromDB] : [],
+      qzonePosts: qzonePostsFromDB,
+      qzoneAlbums: qzoneAlbumsFromDB,
+      qzonePhotos: qzonePhotosFromDB,
+      personaPresets: personaPresetsFromDB,
+      memories: memoriesFromDB,
+      apiPresets: apiPresetsFromDB,
+      favorites: favoritesFromDB,
+      callRecords: callRecordsFromDB
+    };
+
+    // 标记包含的内容
+    backupData.contains.push('worldBooks', 'userStickers', 'appearance');
+    transformedChats.forEach(chat => {
+      if (!chat.isGroup) {
+        backupData.contains.push(`character_${chat.id}`);
+      }
+    });
+
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], {
+      type: 'application/json'
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const dateStr = new Date().toISOString().split('T')[0];
+    link.href = url;
+    link.download = `EPhone-330-to-TuK-${dateStr}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    await showCustomAlert(
+      '导出成功',
+      '已成功生成兼容兔K版本的备份文件！现在你可以在兔K版本中导入它了。'
+    );
+  } catch (error) {
+    console.error('兼容性导出失败:', error);
+    await showCustomAlert(
+      '导出失败',
+      `发生了一个错误: ${error.message}`
+    );
+  } finally {
+    document.getElementById('advanced-transfer-modal-330').classList.remove('visible');
+  }
+}
+
+/**
+ * 【兼容兔K】处理并导入来自兔K版本格式的备份文件
+ * @param {File} file - 用户选择的兔K格式的JSON文件
+ */
+async function importFromTuKFormat(file) {
+  if (!file) return;
+
+  const confirmed = await showCustomConfirm(
+    '严重警告！',
+    '您正在从兔K版本导入数据，这将【完全覆盖】您当前的所有数据！此操作不可撤销！确定要继续吗？',
+    { confirmButtonClass: 'btn-danger' }
+  );
+  if (!confirmed) return;
+
+  await showCustomAlert('请稍候...', '正在解析并转换兔K版本的数据...');
+
+  try {
+    const text = await file.text();
+    const importedData = JSON.parse(text);
+
+    if (importedData.type !== 'EPhoneChunkedBackup') {
+      throw new Error('文件类型不匹配！这不是兔K版本的备份文件。');
+    }
+
+    const dataTuK = importedData.data;
+
+    // 清空现有数据
+    await db.transaction('rw', db.tables, async () => {
+      for (const table of db.tables) {
+        await table.clear();
+      }
+      console.log('兔K导入：已清空所有数据表，准备导入...');
+
+      // 转换世界书格式：兔K版本的content是字符串，需要转换为330的数组格式
+      if (dataTuK.worldBooks && Array.isArray(dataTuK.worldBooks)) {
+        const transformedWorldBooks = dataTuK.worldBooks.map(book => {
+          const newBook = { ...book };
+          // 将字符串content转换为数组格式
+          if (typeof newBook.content === 'string' && newBook.content.trim()) {
+            newBook.content = [{
+              keys: [book.name],
+              comment: `从兔K版本导入的条目`,
+              content: book.content,
+              enabled: true
+            }];
+          } else {
+            newBook.content = [];
+          }
+          return newBook;
+        });
+        await db.worldBooks.bulkPut(transformedWorldBooks);
+        console.log(`兔K导入：成功转换并导入 ${transformedWorldBooks.length} 个世界书。`);
+      }
+
+      // 转换聊天数据：将npcLibrary拆分为独立的NPC表
+      if (dataTuK.chats && Array.isArray(dataTuK.chats)) {
+        const chatsToImport = [];
+        const npcsToImport = [];
+        const npcIdSet = new Set();
+
+        dataTuK.chats.forEach(chat => {
+          if (chat.isGroup) {
+            chatsToImport.push(chat);
+            return;
+          }
+
+          // 提取NPC到独立表
+          if (Array.isArray(chat.npcLibrary) && chat.npcLibrary.length > 0) {
+            chat.npcLibrary.forEach(npc => {
+              if (!npcIdSet.has(npc.id)) {
+                npcsToImport.push({
+                  id: npc.id,
+                  name: npc.name,
+                  avatar: npc.avatar,
+                  persona: npc.persona,
+                  associatedWith: [chat.id]
+                });
+                npcIdSet.add(npc.id);
+              } else {
+                const existingNpc = npcsToImport.find(n => n.id === npc.id);
+                if (existingNpc && !existingNpc.associatedWith.includes(chat.id)) {
+                  existingNpc.associatedWith.push(chat.id);
+                }
+              }
+            });
+          }
+
+          // 移除npcLibrary字段后添加到导入列表
+          const { npcLibrary, ...chatWithoutNpcs } = chat;
+          chatsToImport.push(chatWithoutNpcs);
+        });
+
+        await db.chats.bulkPut(chatsToImport);
+        if (npcsToImport.length > 0) {
+          await db.npcs.bulkPut(npcsToImport);
+        }
+        console.log(`兔K导入：成功转换并导入 ${chatsToImport.length} 个聊天和 ${npcsToImport.length} 个NPC。`);
+      }
+
+      // 转换圈子数据为豆瓣格式
+      if (dataTuK.forumPosts && Array.isArray(dataTuK.forumPosts)) {
+        const forumGroups = dataTuK.forumGroups || [];
+        const transformedDoubanPosts = dataTuK.forumPosts.map(post => {
+          const group = forumGroups.find(g => g.id === post.groupId);
+          return {
+            id: post.id,
+            timestamp: post.timestamp,
+            groupName: group ? group.name : '未知小组',
+            postTitle: post.title || '无标题',
+            authorName: post.authorNickname || '未知作者',
+            authorOriginalName: post.authorNickname || '未知作者',
+            content: post.content || '',
+            likesCount: post.likes || 0,
+            commentsCount: (post.comments || []).length,
+            comments: (post.comments || []).map(c => ({
+              commenter: c.author,
+              text: c.content
+            }))
+          };
+        });
+        await db.doubanPosts.bulkPut(transformedDoubanPosts);
+        console.log(`兔K导入：成功转换并导入 ${transformedDoubanPosts.length} 条豆瓣帖子。`);
+      }
+
+      // 导入单对象设置
+      if (dataTuK.apiConfig && dataTuK.apiConfig[0]) {
+        await db.apiConfig.put(dataTuK.apiConfig[0]);
+      }
+      if (dataTuK.globalSettings && dataTuK.globalSettings[0]) {
+        await db.globalSettings.put(dataTuK.globalSettings[0]);
+      }
+      if (dataTuK.qzoneSettings && dataTuK.qzoneSettings[0]) {
+        await db.qzoneSettings.put(dataTuK.qzoneSettings[0]);
+      }
+
+      // 直接导入其他结构相同的数据表
+      const directImportTables = [
+        'userStickers',
+        'userStickerCategories',
+        'personaPresets',
+        'qzonePosts',
+        'qzoneAlbums',
+        'qzonePhotos',
+        'favorites',
+        'memories',
+        'callRecords',
+        'apiPresets',
+        'worldBookCategories'
+      ];
+
+      for (const tableName of directImportTables) {
+        if (dataTuK[tableName] && Array.isArray(dataTuK[tableName]) && db[tableName]) {
+          await db[tableName].bulkPut(dataTuK[tableName]);
+          console.log(`兔K导入：成功导入 ${dataTuK[tableName].length} 条数据到 ${tableName}。`);
+        }
+      }
+    });
+
+    // 重新加载数据
+    await loadAllDataFromDB();
+    await renderChatList();
+
+    await showCustomAlert(
+      '导入成功',
+      '来自兔K版本的数据已成功导入！应用即将刷新以应用所有更改。'
+    );
+    setTimeout(() => {
+      window.location.reload();
+    }, 1500);
+  } catch (error) {
+    console.error('从兔K格式导入失败:', error);
+    await showCustomAlert(
+      '导入失败',
+      `文件格式不正确或数据已损坏: ${error.message}`
+    );
+  } finally {
+    document.getElementById('advanced-transfer-modal-330').classList.remove('visible');
+  }
+}

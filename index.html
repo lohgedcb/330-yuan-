@@ -1129,7 +1129,7 @@
         </div>
 
         <!-- 系统级通知 -->
-        <div class="settings-header">系统级通知 <span style="font-size: 12px; color: #999; margin-left: 10px;">v0.0.1</span></div>
+        <div class="settings-header">系统级通知 <span style="font-size: 12px; color: #999; margin-left: 10px;">v0.0.2</span></div>
         <div class="settings-section">
             <!-- 1. 主开关 -->
             <div class="settings-item">
@@ -1299,6 +1299,9 @@
             <button class="settings-full-btn" id="import-btn">导入备份文件</button>
             <input id="import-data-input" type="file" accept="application/json" hidden>
             
+            <!-- 高级导入导出按钮 -->
+            <button class="settings-full-btn" id="advanced-transfer-btn">高级导入导出</button>
+            
             <button class="settings-full-btn" id="cleanup-data-btn">清理冗余数据</button>
             <button class="settings-full-btn" id="delete-world-books-btn">删除世界书</button>
             <button class="settings-full-btn" id="clear-specific-data-btn">高级数据清理</button>
@@ -1348,6 +1351,35 @@
     <div class="modal-body" id="selective-import-list" style="padding: 0;">
       </div>
     <div class="modal-footer">
+
+<!-- 高级导入导出弹窗 -->
+<div id="advanced-transfer-modal-330" class="modal">
+  <div class="modal-content" style="max-width: 500px; height: auto;">
+    <div class="modal-header">
+      <span>高级导入导出</span>
+    </div>
+    <div class="modal-body" style="padding: 20px; text-align: center;">
+      <p style="margin-bottom: 20px; color: #666;">在330版本与兔K版本之间互通数据</p>
+      
+      <button class="settings-full-btn" id="export-to-tuk-btn" style="background-color: #6f42c1; border-color: #6f42c1; margin-bottom: 15px;">
+         兼容兔K版本导出
+      </button>
+      
+      <button class="settings-full-btn" id="import-from-tuk-btn" style="background-color: #28a745; border-color: #28a745; margin-bottom: 15px;">
+        兼容兔K版本导入
+      </button>
+      
+      <input id="import-from-tuk-input" type="file" accept="application/json" hidden>
+      
+      <p style="font-size: 12px; color: #999; margin-top: 20px;">
+        💡 提示：导出的文件可以在兔K版本中导入，反之亦然
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="cancel" id="close-advanced-transfer-btn">关闭</button>
+    </div>
+  </div>
+</div>
       <button class="cancel" id="cancel-selective-import-btn" data-lang-key="cancel">取消</button>
       <button class="save" id="confirm-merge-import-btn">确认合并</button>
     </div>
