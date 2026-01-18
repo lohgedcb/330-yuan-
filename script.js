@@ -36470,7 +36470,7 @@ async function exportAppearanceSettings() {
 
 
   let currentPage = 0;
-  const totalPages = 3;
+  const totalPages = 2;
 
 
   function setupHomeScreenPagination() {
@@ -49337,84 +49337,6 @@ ${recentHistoryWithUser}
     window.openCharWallet = openCharWallet;
     window.switchToCharHomeScreen = switchToCharHomeScreen;
     window.openNpcEditor = openNpcEditor;
-    window.openMyPhone = openMyPhone;
-    window.openMyApp = openMyApp;
-    window.switchToMyHomeScreen = switchToMyHomeScreen;
-    window.switchToMyScreen = switchToMyScreen;
-
-  // ========== MyPhone 相关函数 ==========
-  
-  function openMyPhone() {
-    console.log("打开 MyPhone");
-    showScreen('my-phone-screen');
-    switchToMyHomeScreen();
-  }
-  
-  function switchToMyHomeScreen() {
-    switchToMyScreen('my-home-screen');
-  }
-  
-  function switchToMyScreen(screenId) {
-    document.querySelectorAll('#my-phone-screen .char-screen').forEach(s => s.classList.remove('active'));
-    const targetScreen = document.getElementById(screenId);
-    if (targetScreen) {
-      targetScreen.classList.add('active');
-    }
-  }
-  
-  async function openMyApp(appName) {
-    console.log(`打开 MyPhone 应用: ${appName}`);
-    
-    // 这里复用CPhone的逻辑，但使用my-前缀的元素ID
-    switch(appName) {
-      case 'qq':
-        switchToMyScreen('my-qq-screen');
-        // 可以在这里添加加载QQ数据的逻辑
-        break;
-      case 'album':
-        switchToMyScreen('my-album-screen');
-        // 可以在这里添加加载相册数据的逻辑
-        break;
-      case 'browser':
-        switchToMyScreen('my-browser-screen');
-        // 可以在这里添加加载浏览器历史的逻辑
-        break;
-      case 'taobao':
-        switchToMyScreen('my-taobao-screen');
-        // 可以在这里添加加载淘宝订单的逻辑
-        break;
-      case 'memo':
-        switchToMyScreen('my-memo-screen');
-        // 可以在这里添加加载备忘录的逻辑
-        break;
-      case 'diary':
-        switchToMyScreen('my-diary-screen');
-        // 可以在这里添加加载日记的逻辑
-        break;
-      case 'amap':
-        switchToMyScreen('my-amap-screen');
-        // 可以在这里添加加载地图足迹的逻辑
-        break;
-      case 'usage':
-        switchToMyScreen('my-usage-screen');
-        // 可以在这里添加加载APP使用记录的逻辑
-        break;
-      case 'music':
-        switchToMyScreen('my-music-screen');
-        // 可以在这里添加加载音乐歌单的逻辑
-        break;
-      case 'bilibili':
-        switchToMyScreen('my-bilibili-screen');
-        // 可以在这里添加加载B站推荐的逻辑
-        break;
-      case 'reddit':
-        switchToMyScreen('my-reddit-screen');
-        // 可以在这里添加加载Reddit内容的逻辑
-        break;
-      default:
-        console.log(`未知的应用: ${appName}`);
-    }
-  }
 
 
 
