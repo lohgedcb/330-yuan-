@@ -1,8 +1,8 @@
 // Service Worker 文件 (sw.js)
-// 【网络优先策略】- 服务器更新后立即生效，同时支持离线访问
+// 【强制网络优先策略】- 始终从服务器获取最新版本，不使用缓存
 
-// 缓存版本号（网络优先策略下，版本号主要用于清理旧缓存）
-const CACHE_VERSION = 'v2.0.0';
+// 缓存版本号（强制更新策略）
+const CACHE_VERSION = 'v0.0.1';
 const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
 
 // 需要被缓存的文件列表（仅用于离线访问）
@@ -54,7 +54,7 @@ self.addEventListener('activate', event => {
   );
 });
 
-// 3. 拦截网络请求事件：使用【网络优先策略】
+// 3. 拦截网络请求事件：使用【强制网络优先策略 - 不使用缓存】
 self.addEventListener('fetch', event => {
   // 只对 GET 请求进行处理
   if (event.request.method !== 'GET') {
@@ -62,21 +62,23 @@ self.addEventListener('fetch', event => {
   }
 
   event.respondWith(
-    // 【网络优先】先尝试从网络获取最新版本
-    fetch(event.request)
+    // 【强制网络优先】始终从网络获取最新版本，添加 no-cache 头
+    fetch(event.request, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    })
       .then(response => {
-        // 如果网络请求成功，克隆响应并更新缓存
-        if (response && response.status === 200) {
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME).then(cache => {
-            cache.put(event.request, responseToCache);
-          });
-        }
+        // 网络请求成功，直接返回，不缓存
+        console.log('[SW] 从网络获取最新版本:', event.request.url);
         return response;
       })
       .catch(() => {
-        // 如果网络请求失败（离线或网络错误），则使用缓存
-        console.log('[SW] 网络请求失败，使用缓存:', event.request.url);
+        // 如果网络请求失败（离线或网络错误），则使用缓存作为后备
+        console.log('[SW] 网络请求失败，使用缓存作为后备:', event.request.url);
         return caches.match(event.request);
       })
   );

@@ -117,17 +117,20 @@ class NotificationManager {
         }
 
         try {
-            // 设置默认选项
+            // 设置默认选项（强制横幅显示）
             const notificationOptions = {
                 body: options.body || '您有新消息',
                 icon: options.icon || 'https://s3plus.meituan.net/opapisdk/op_ticket_885190757_1758510900942_qdqqd_djw0z2.jpeg',
                 badge: options.badge || 'https://s3plus.meituan.net/opapisdk/op_ticket_885190757_1758510900942_qdqqd_djw0z2.jpeg',
                 tag: options.tag || `msg-${Date.now()}`,
-                requireInteraction: options.requireInteraction !== false, // 默认 true
-                vibrate: options.vibrate || [200, 100, 200], // 震动模式
+                requireInteraction: true, // 强制用户交互
+                vibrate: options.vibrate || [200, 100, 200, 100, 200], // 更明显的震动
                 data: options.data || {},
-                silent: options.silent || false,
-                timestamp: options.timestamp || Date.now()
+                silent: false, // 必须有声音才能显示横幅
+                timestamp: Date.now(),
+                // 安卓横幅关键配置
+                renotify: true, // 即使 tag 相同也重新通知
+                actions: options.actions || [] // 可选：添加操作按钮
             };
 
             // 使用 ServiceWorkerRegistration.showNotification()
@@ -142,7 +145,7 @@ class NotificationManager {
     }
 
     /**
-     * 发送聊天消息通知
+     * 发送聊天消息通知（强制横幅显示）
      */
     async notifyNewMessage(chatName, messageContent, chatId) {
         return await this.showNotification(`${chatName}`, {
@@ -154,7 +157,13 @@ class NotificationManager {
                 timestamp: Date.now()
             },
             requireInteraction: true,
-            vibrate: [200, 100, 200]
+            vibrate: [200, 100, 200, 100, 200], // 更强的震动
+            silent: false, // 必须有声音
+            renotify: true, // 强制重新通知
+            actions: [
+                { action: 'reply', title: '回复' },
+                { action: 'dismiss', title: '关闭' }
+            ]
         });
     }
 
@@ -173,15 +182,21 @@ class NotificationManager {
     }
 
     /**
-     * 测试通知
+     * 测试通知（强制横幅显示）
      */
     async testNotification() {
         console.log('[通知管理器] 发送测试通知...');
-        return await this.showNotification('测试通知', {
-            body: '如果你看到这条通知，说明通知功能正常工作！',
-            tag: 'test',
+        return await this.showNotification('🔔 测试通知', {
+            body: '如果你看到这条横幅通知，说明功能正常！',
+            tag: `test-${Date.now()}`, // 每次不同的 tag
             requireInteraction: true,
-            vibrate: [200, 100, 200, 100, 200]
+            vibrate: [300, 100, 300, 100, 300], // 更强的震动
+            silent: false, // 必须有声音
+            renotify: true,
+            actions: [
+                { action: 'ok', title: '好的' },
+                { action: 'close', title: '关闭' }
+            ]
         });
     }
 

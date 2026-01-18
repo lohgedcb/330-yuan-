@@ -29326,9 +29326,15 @@ ${chat.settings.myPersona}
         icon: icon,
         badge: icon,
         tag: `chat-${chatId}-${Date.now()}`,
-        requireInteraction: false,
-        silent: !state.globalSettings.systemNotification.sound?.enabled,
-        data: { chatId }
+        requireInteraction: true, // 强制显示横幅
+        silent: false, // 必须有声音
+        vibrate: [200, 100, 200, 100, 200], // 强震动
+        renotify: true, // 强制重新通知
+        data: { chatId },
+        actions: [
+          { action: 'reply', title: '回复' },
+          { action: 'dismiss', title: '关闭' }
+        ]
       });
       console.log('[系统通知调试] 通知创建成功');
       
