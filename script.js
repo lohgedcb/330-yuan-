@@ -49337,6 +49337,84 @@ ${recentHistoryWithUser}
     window.openCharWallet = openCharWallet;
     window.switchToCharHomeScreen = switchToCharHomeScreen;
     window.openNpcEditor = openNpcEditor;
+    window.openMyPhone = openMyPhone;
+    window.openMyApp = openMyApp;
+    window.switchToMyHomeScreen = switchToMyHomeScreen;
+    window.switchToMyScreen = switchToMyScreen;
+
+  // ========== MyPhone 相关函数 ==========
+  
+  function openMyPhone() {
+    console.log("打开 MyPhone");
+    showScreen('my-phone-screen');
+    switchToMyHomeScreen();
+  }
+  
+  function switchToMyHomeScreen() {
+    switchToMyScreen('my-home-screen');
+  }
+  
+  function switchToMyScreen(screenId) {
+    document.querySelectorAll('#my-phone-screen .char-screen').forEach(s => s.classList.remove('active'));
+    const targetScreen = document.getElementById(screenId);
+    if (targetScreen) {
+      targetScreen.classList.add('active');
+    }
+  }
+  
+  async function openMyApp(appName) {
+    console.log(`打开 MyPhone 应用: ${appName}`);
+    
+    // 这里复用CPhone的逻辑，但使用my-前缀的元素ID
+    switch(appName) {
+      case 'qq':
+        switchToMyScreen('my-qq-screen');
+        // 可以在这里添加加载QQ数据的逻辑
+        break;
+      case 'album':
+        switchToMyScreen('my-album-screen');
+        // 可以在这里添加加载相册数据的逻辑
+        break;
+      case 'browser':
+        switchToMyScreen('my-browser-screen');
+        // 可以在这里添加加载浏览器历史的逻辑
+        break;
+      case 'taobao':
+        switchToMyScreen('my-taobao-screen');
+        // 可以在这里添加加载淘宝订单的逻辑
+        break;
+      case 'memo':
+        switchToMyScreen('my-memo-screen');
+        // 可以在这里添加加载备忘录的逻辑
+        break;
+      case 'diary':
+        switchToMyScreen('my-diary-screen');
+        // 可以在这里添加加载日记的逻辑
+        break;
+      case 'amap':
+        switchToMyScreen('my-amap-screen');
+        // 可以在这里添加加载地图足迹的逻辑
+        break;
+      case 'usage':
+        switchToMyScreen('my-usage-screen');
+        // 可以在这里添加加载APP使用记录的逻辑
+        break;
+      case 'music':
+        switchToMyScreen('my-music-screen');
+        // 可以在这里添加加载音乐歌单的逻辑
+        break;
+      case 'bilibili':
+        switchToMyScreen('my-bilibili-screen');
+        // 可以在这里添加加载B站推荐的逻辑
+        break;
+      case 'reddit':
+        switchToMyScreen('my-reddit-screen');
+        // 可以在这里添加加载Reddit内容的逻辑
+        break;
+      default:
+        console.log(`未知的应用: ${appName}`);
+    }
+  }
 
 
 
@@ -55327,87 +55405,6 @@ if (isGroup) {
 
 
     setupHomeScreenPagination();
-
-    // Cphone 翻页功能
-    function setupCphonePagination() {
-      const pagesContainer = document.getElementById('cphone-pages-container');
-      const pages = document.getElementById('cphone-pages');
-      const dots = document.querySelectorAll('.cphone-pagination-dot');
-      
-      if (!pagesContainer || !pages || dots.length === 0) return;
-      
-      let currentCphonePage = 0;
-      const totalCphonePages = 2;
-      let startX = 0, startY = 0;
-      let currentX = 0;
-      let isDragging = false;
-      let isClick = true;
-
-      const updatePagination = () => {
-        pages.style.transform = `translateX(-${currentCphonePage * (100 / totalCphonePages)}%)`;
-        dots.forEach((dot, index) => {
-          dot.classList.toggle('active', index === currentCphonePage);
-        });
-      };
-
-      const onDragStart = (e) => {
-        isDragging = true;
-        isClick = true;
-        startX = e.type.includes('mouse') ? e.pageX : e.touches[0].pageX;
-        startY = e.type.includes('mouse') ? e.pageY : e.touches[0].pageY;
-        pages.style.transition = 'none';
-      };
-
-      const onDragMove = (e) => {
-        if (!isDragging) return;
-
-        const currentY = e.type.includes('mouse') ? e.pageY : e.touches[0].pageY;
-        currentX = e.type.includes('mouse') ? e.pageX : e.touches[0].pageX;
-        const diffX = currentX - startX;
-        const diffY = currentY - startY;
-
-        if (isClick && (Math.abs(diffX) > 10 || Math.abs(diffY) > 10)) {
-          isClick = false;
-        }
-
-        if (Math.abs(diffX) > Math.abs(diffY)) {
-          if (e.cancelable) e.preventDefault();
-          pages.style.transform = `translateX(calc(-${currentCphonePage * (100 / totalCphonePages)}% + ${diffX}px))`;
-        }
-      };
-
-      const onDragEnd = (e) => {
-        if (!isDragging) return;
-        isDragging = false;
-        pages.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
-
-        if (isClick) {
-          updatePagination();
-          return;
-        }
-
-        const diffX = currentX - startX;
-        if (Math.abs(diffX) > pagesContainer.offsetWidth / 4) {
-          if (diffX > 0 && currentCphonePage > 0) {
-            currentCphonePage--;
-          } else if (diffX < 0 && currentCphonePage < totalCphonePages - 1) {
-            currentCphonePage++;
-          }
-        }
-        updatePagination();
-      };
-
-      pagesContainer.addEventListener('mousedown', onDragStart);
-      pagesContainer.addEventListener('mousemove', onDragMove);
-      pagesContainer.addEventListener('mouseup', onDragEnd);
-      pagesContainer.addEventListener('mouseleave', onDragEnd);
-
-      pagesContainer.addEventListener('touchstart', onDragStart, { passive: false });
-      pagesContainer.addEventListener('touchmove', onDragMove, { passive: false });
-      pagesContainer.addEventListener('touchend', onDragEnd);
-    }
-
-    setupCphonePagination();
 
 
     window.openPresetScreen = openPresetScreen;
