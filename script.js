@@ -1019,8 +1019,8 @@ document.getElementById('char-city-search-btn').addEventListener('click', async 
         stopApiCallBtn.style.display = 'none';
         stopApiCallBtn.classList.remove('active');
         
-        // 显示取消提示
-        showCustomAlert('已暂停', 'API调用已被取消');
+        // 显示取消提示（仅给用户看，不会进入聊天历史）
+        showCustomAlert('已停止', '对话已停止生成');
       }
     });
   }
@@ -2360,7 +2360,8 @@ document.getElementById('char-city-search-btn').addEventListener('click', async 
       lyrics: new Map()
     },
     ttsCache: new Map(),
-    quickReplies: []
+    quickReplies: [],
+    pets: [] // 宠物列表
   };
 
 let memoryCache = []; // 缓存所有需要显示的记忆
@@ -3749,6 +3750,11 @@ function showChoiceModal(title, options) {
     presetCategories: '++id, name',
     readingLibrary: '++id, title, lastOpened, linkedStoryId',
     quickReplies: '++id, text, categoryId', // 修改：增加 categoryId 索引
+  });
+
+  // 宠物系统 - 新增数据表
+  db.version(51).stores({
+    pets: '++id, name', // 宠物表：id自增，name为宠物名称
     quickReplyCategories: '++id, name',
     npcs: '++id, name, npcGroupId, enableBackgroundActivity, actionCooldownMinutes, lastActionTimestamp',
     npcGroups: '++id, name',
@@ -4840,7 +4846,8 @@ function showChoiceModal(title, options) {
         presets,
         presetCategories,
 
-        npcs
+        npcs,
+        pets
       ] = await Promise.all([
         db.chats.toArray(),
         db.worldBooks.toArray(),
@@ -4870,7 +4877,8 @@ function showChoiceModal(title, options) {
         db.presets.toArray(),
         db.presetCategories.toArray(),
 
-        db.npcs.toArray()
+        db.npcs.toArray(),
+        db.pets.toArray()
       ]);
 
       Object.assign(backupData, {
@@ -4902,7 +4910,8 @@ function showChoiceModal(title, options) {
         presets,
         presetCategories,
 
-        npcs
+        npcs,
+        pets
       });
 
       const blob = new Blob(
@@ -5321,6 +5330,7 @@ function showChoiceModal(title, options) {
         if (Array.isArray(backupData.presets)) await db.presets.bulkPut(backupData.presets);
         if (Array.isArray(backupData.presetCategories)) await db.presetCategories.bulkPut(backupData.presetCategories);
         if (Array.isArray(backupData.npcs)) await db.npcs.bulkPut(backupData.npcs);
+        if (Array.isArray(backupData.pets)) await db.pets.bulkPut(backupData.pets);
       });
     } catch (error) {
       throw new Error(`旧版备份数据写入数据库失败: ${error.message}`);
@@ -5373,7 +5383,8 @@ function showChoiceModal(title, options) {
       allMemories,
 
       allPresets,
-      allQuickReplies
+      allQuickReplies,
+      allPets
     ] = await Promise.all([
       db.chats.toArray(), db.apiConfig.get('main'), db.globalSettings.get('main'),
       db.userStickers.toArray(), db.worldBooks.toArray(), db.musicLibrary.get('main'),
@@ -5381,12 +5392,14 @@ function showChoiceModal(title, options) {
       db.memories.toArray(),
 
       db.presets.toArray(),
-      db.quickReplies.toArray()
+      db.quickReplies.toArray(),
+      db.pets.toArray()
     ]);
 
 
     state.presets = allPresets || [];
     state.quickReplies = allQuickReplies || [];
+    state.pets = allPets || [];
     await initUserWallet(); 
     const defaultGlobalSettings = {
       id: 'main',
@@ -5395,6 +5408,7 @@ function showChoiceModal(title, options) {
       fontUrl: '',
       enableThoughts: false,              // 新增：全局心声开关，默认关闭
       enableQzoneActions: false,          // 新增：全局动态开关，默认关闭
+      enableViewMyPhone: false,           // 新增：全局查看User手机开关，默认关闭
       enableBackgroundActivity: false,
       backgroundActivityInterval: 60,
       blockCooldownHours: 1,
@@ -5618,6 +5632,9 @@ function showChoiceModal(title, options) {
         }
         if (typeof chat.settings.enableQzoneActions === 'undefined') {
           chat.settings.enableQzoneActions = null; // null表示使用全局设置
+        }
+        if (typeof chat.settings.enableViewMyPhone === 'undefined') {
+          chat.settings.enableViewMyPhone = null; // null表示使用全局设置
         }
 
         if (typeof chat.heartfeltVoice === 'undefined') chat.heartfeltVoice = '...';
@@ -7122,6 +7139,7 @@ async function saveNaiBinding() {
     // 新增：读取心声和动态功能开关
     document.getElementById('global-enable-thoughts-switch').checked = state.globalSettings.enableThoughts || false;
     document.getElementById('global-enable-qzone-actions-switch').checked = state.globalSettings.enableQzoneActions || false;
+    document.getElementById('global-enable-view-myphone-switch').checked = state.globalSettings.enableViewMyPhone || false;
     
     document.getElementById('chat-render-window-input').value = state.globalSettings.chatRenderWindow || 50;
     document.getElementById('chat-list-render-window-input').value = state.globalSettings.chatListRenderWindow || 30;
@@ -11149,6 +11167,110 @@ ${stickerContext}
 
 
 
+  // ==================== 宠物AI响应系统 ====================
+  
+  // 检测消息中@了哪些宠物
+  function getMentionedPets(message) {
+    const mentionedPets = [];
+    const content = typeof message === 'string' ? message : message.content;
+    
+    for (const pet of state.pets) {
+      const mentionPattern = new RegExp(`@${pet.name}\\b`, 'g');
+      if (mentionPattern.test(content)) {
+        mentionedPets.push(pet);
+      }
+    }
+    
+    return mentionedPets;
+  }
+  
+  // 为宠物生成AI响应
+  async function generatePetResponse(pet, chat) {
+    const {proxyUrl, apiKey, model} = state.apiConfig;
+    
+    // 获取最近N条对话
+    const historyCount = pet.historyCount || 10;
+    const recentHistory = chat.history.slice(-historyCount);
+    
+    // 构建宠物的系统提示
+    let petSystemPrompt = `# 你的身份
+你是一只名叫"${pet.name}"的电子宠物。
+
+# 你的性格
+${pet.personality}
+
+${pet.persona ? `# 你的详细人设\n${pet.persona}\n` : ''}
+
+# 你与USER的关系
+${pet.feelingToUser || '友好亲密'}
+
+# 你与CHAR的关系  
+CHAR是与USER对话的角色。你对CHAR的感情是：${pet.feelingToChar || '友好'}
+
+# 你的任务
+- 根据你的性格和人设，以宠物的身份回复USER
+- 你可以看到最近的对话，了解当前的情境
+- 你的回复要符合你的性格特点
+- 你可以对USER和CHAR之间的对话发表看法
+- 记住你是电子宠物，可以有自己的想法和情绪
+
+# 回复格式
+直接以自然的语言回复，不需要任何特殊格式。`;
+
+    // 构建消息历史（用于上下文）
+    const messages = [
+      { role: 'system', content: petSystemPrompt }
+    ];
+    
+    // 添加最近的对话历史
+    for (const msg of recentHistory) {
+      if (msg.role === 'user') {
+        messages.push({ role: 'user', content: msg.content });
+      } else if (msg.role === 'assistant') {
+        messages.push({ role: 'assistant', content: msg.content });
+      } else if (msg.role === 'system' && !msg.isHidden) {
+        // 包含系统消息（如旁白）但不包含隐藏消息
+        messages.push({ role: 'user', content: `[系统消息: ${msg.content}]` });
+      }
+    }
+    
+    try {
+      let geminiConfig = toGeminiRequestData(model, apiKey, petSystemPrompt, messages);
+      let isGemini = proxyUrl === GEMINI_API_URL;
+      
+      const response = isGemini 
+        ? await fetch(geminiConfig.url, geminiConfig.data)
+        : await fetch(`${proxyUrl}/v1/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              model: model,
+              messages: messages,
+              temperature: 0.8
+            }),
+            signal: currentApiController?.signal
+          });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`API失败: ${errorData.error?.message || '未知错误'}`);
+      }
+      
+      const data = await response.json();
+      const petResponseContent = getGeminiResponseText(data);
+      
+      return petResponseContent;
+    } catch (error) {
+      console.error(`宠物 ${pet.name} AI响应失败:`, error);
+      return `[${pet.name}想说些什么，但似乎遇到了问题...]`;
+    }
+  }
+  
+  // ==================== 宠物AI响应系统结束 ====================
+
   async function triggerAiResponse() {
     if (!state.activeChatId) return;
     const chatId = state.activeChatId;
@@ -11201,7 +11323,51 @@ ${stickerContext}
         return;
       }
 
+      // ==================== 宠物响应处理 ====================
+      // 检测最后一条用户消息中是否@了宠物
       const lastMessage = chat.history.slice(-1)[0];
+      const mentionedPets = (lastMessage && lastMessage.role === 'user') ? getMentionedPets(lastMessage.content) : [];
+      
+      // 如果@了宠物，启动并行API调用
+      let petResponses = [];
+      if (mentionedPets.length > 0) {
+        console.log(`检测到用户@了宠物:`, mentionedPets.map(p => p.name).join(', '));
+        
+        // 并行调用所有被@的宠物的API
+        const petPromises = mentionedPets.map(pet => generatePetResponse(pet, chat));
+        
+        // 不使用await，让宠物API调用和CHAR的API调用并行执行
+        Promise.all(petPromises).then(responses => {
+          // 在CHAR响应处理完成后，添加宠物的响应
+          responses.forEach((responseContent, index) => {
+            const pet = mentionedPets[index];
+            const petMessage = {
+              role: 'assistant',
+              content: responseContent,
+              senderName: `🐾 ${pet.name}`,
+              isPetMessage: true,
+              petId: pet.id,
+              timestamp: Date.now() + index + 1 // 确保时间戳唯一
+            };
+            
+            chat.history.push(petMessage);
+            
+            // 如果正在查看这个聊天，立即渲染宠物消息
+            if (isViewingThisChat) {
+              appendMessage(petMessage, chat);
+            }
+          });
+          
+          // 保存聊天历史
+          db.chats.put(chat).then(() => {
+            renderChatList();
+          });
+        }).catch(error => {
+          console.error('宠物响应失败:', error);
+        });
+      }
+      // ==================== 宠物响应处理结束 ====================
+      
       const isVideoCallRequest = lastMessage && lastMessage.role === 'system' && lastMessage.content.includes('视频通话请求');
 
       if (isVideoCallRequest) {
@@ -12832,6 +12998,34 @@ const qzoneActionsPrompt = enableQzoneActions ? `
 -   **评论动态**: \`[{"type": "qzone_comment", "name": "\${chat.originalName}", "postId": 123, "commentText": "评论内容"}]\`
 -   **点赞动态**: \`{"type": "qzone_like", "postId": 456}\`
 ` : '';
+
+// 新增：判断是否启用查看User手机功能
+const enableViewMyPhone = chat.settings.enableViewMyPhone !== null 
+  ? chat.settings.enableViewMyPhone 
+  : state.globalSettings.enableViewMyPhone;
+
+// 新增：构建查看User手机的prompt部分
+const viewMyPhonePrompt = enableViewMyPhone ? `
+### D. 查看${myNickname}的手机 (MyPhone)
+你可以主动查看${myNickname}的手机APP，了解TA的生活动态。查看后，你可以根据看到的内容给出感想、询问或关心。
+-   **查看手机**: \`{"type": "view_myphone", "apps": ["qq", "album", "taobao", "amap", "browser", "memo", "diary", "music", "app_usage"]}\`
+    - **apps参数说明**:
+      - \`"qq"\`: 查看TA的QQ聊天记录（可能发现TA和别人的聊天）
+      - \`"album"\`: 查看TA的相册（可能发现新照片）
+      - \`"taobao"\`: 查看TA的淘宝订单（可能发现TA买了什么）
+      - \`"amap"\`: 查看TA的高德地图足迹（可能发现TA去了哪里）
+      - \`"browser"\`: 查看TA的浏览器历史（可能发现TA在看什么）
+      - \`"memo"\`: 查看TA的备忘录（可能发现TA的计划）
+      - \`"diary"\`: 查看TA的日记（可能发现TA的心情）
+      - \`"music"\`: 查看TA的音乐播放列表（可能发现TA在听什么歌）
+      - \`"app_usage"\`: 查看TA的APP使用记录（可能发现TA最近在用什么APP）
+      - 或使用 \`"all"\` 查看所有APP
+    - **使用建议**: 根据你的人设和当前情绪，选择性查看。例如：
+      - 如果你是醋坛子，可能会想看TA的QQ聊天
+      - 如果你关心TA，可能会想看TA的淘宝订单，主动给TA报销
+      - 如果你想了解TA的生活，可能会查看相册或地图足迹
+    - **重要**: 查看后的数据是${myNickname}手机的【真实数据】，你必须基于这些真实数据做出反应，不能凭空编造！
+` : '';
      
          systemPrompt = `
 # 【最高指令：沉浸式角色扮演】
@@ -12920,7 +13114,8 @@ ${localStorage.getItem('novelai-enabled') === 'true' ? `-   **NovelAI真实图�
     - 注意：这会直接在聊天记录中显示图片，而不是发布到动态。` : ''}
 
 ${qzoneActionsPrompt}
-### D. 互动与生活 (Interactive)
+${viewMyPhonePrompt}
+### E. 互动与生活 (Interactive)
 - **拍一拍**: \`{"type": "pat_user", "suffix": "后缀"}\`(根据心情主动拍一拍对方)
 - **转账(给用户钱)**: \`{"type": "transfer", "amount": 5.20, "note": "备注"}\` 
   (⚠️注意：这是【你给用户】发钱！如果你想要用户给你钱，请直接用文字说“可以给我买个xx吗”或者使用【代付】指令，绝对不要用这个指令！)
@@ -13180,14 +13375,7 @@ ${chat.settings.myAvatarLibrary && chat.settings.myAvatarLibrary.length > 0 ? ch
         // 检查是否是用户主动取消
         if (networkError.name === 'AbortError') {
           console.log('API调用已被用户取消');
-          const cancelMessage = {
-            role: 'system',
-            content: '已取消API调用',
-            timestamp: Date.now(),
-            isHidden: true
-          };
-          chat.history.push(cancelMessage);
-          await db.chats.put(chat);
+          // 不添加任何消息到聊天历史，避免AI看到系统消息而困惑
           return;
         }
         throw new Error(`网络请求失败: ${networkError.message}`);
@@ -13744,6 +13932,165 @@ case 'buy_item': {
             
             continue; // 继续处理下一条指令
           }
+          case 'view_myphone':
+            // 处理查看User手机的请求
+            if (!chat.isGroup && msgData.apps) {
+              const userChat = state.chats[chatId]; // 当前聊天就是User的角色
+              let appsToView = Array.isArray(msgData.apps) ? msgData.apps : [msgData.apps];
+              
+              // 如果包含"all"，则查看所有APP
+              if (appsToView.includes('all')) {
+                appsToView = ['qq', 'album', 'taobao', 'amap', 'browser', 'memo', 'diary', 'music', 'app_usage'];
+              }
+              
+              let viewResults = [];
+              
+              // 遍历要查看的APP
+              for (const app of appsToView) {
+                let appData = null;
+                let appName = '';
+                
+                switch(app) {
+                  case 'qq':
+                    appName = 'QQ';
+                    appData = userChat.myPhoneSimulatedQQConversations || [];
+                    if (appData.length > 0) {
+                      const qqSummary = appData.slice(0, 5).map(conv => {
+                        const latestMsg = conv.messages && conv.messages.length > 0 
+                          ? conv.messages[conv.messages.length - 1] 
+                          : null;
+                        return `- ${conv.name}: ${latestMsg ? latestMsg.content.substring(0, 30) + '...' : '暂无消息'}`;
+                      }).join('\n');
+                      viewResults.push(`**QQ聊天列表** (共${appData.length}个联系人):\n${qqSummary}`);
+                    } else {
+                      viewResults.push(`**QQ聊天列表**: 空的`);
+                    }
+                    break;
+                    
+                  case 'album':
+                    appName = '相册';
+                    appData = userChat.myPhoneAlbum || [];
+                    if (appData.length > 0) {
+                      const albumSummary = appData.slice(0, 5).map(photo => 
+                        `- ${new Date(photo.timestamp).toLocaleString()}: ${photo.description || '无描述'}`
+                      ).join('\n');
+                      viewResults.push(`**相册** (共${appData.length}张照片):\n${albumSummary}`);
+                    } else {
+                      viewResults.push(`**相册**: 空的`);
+                    }
+                    break;
+                    
+                  case 'taobao':
+                    appName = '淘宝';
+                    appData = userChat.myPhoneTaobaoHistory || [];
+                    if (appData.length > 0) {
+                      const taobaoSummary = appData.slice(0, 5).map(order => 
+                        `- ${order.productName}: ¥${order.price} (${order.status})`
+                      ).join('\n');
+                      viewResults.push(`**淘宝订单** (共${appData.length}个订单):\n${taobaoSummary}`);
+                    } else {
+                      viewResults.push(`**淘宝订单**: 空的`);
+                    }
+                    break;
+                    
+                  case 'amap':
+                    appName = '高德地图';
+                    appData = userChat.myPhoneAmapHistory || [];
+                    if (appData.length > 0) {
+                      const amapSummary = appData.slice(0, 5).map(record => 
+                        `- ${new Date(record.timestamp).toLocaleString()}: ${record.location}`
+                      ).join('\n');
+                      viewResults.push(`**高德地图足迹** (共${appData.length}条记录):\n${amapSummary}`);
+                    } else {
+                      viewResults.push(`**高德地图足迹**: 空的`);
+                    }
+                    break;
+                    
+                  case 'browser':
+                    appName = '浏览器';
+                    appData = userChat.myPhoneBrowserHistory || [];
+                    if (appData.length > 0) {
+                      const browserSummary = appData.slice(0, 5).map(record => 
+                        `- ${new Date(record.timestamp).toLocaleString()}: ${record.title}`
+                      ).join('\n');
+                      viewResults.push(`**浏览器历史** (共${appData.length}条记录):\n${browserSummary}`);
+                    } else {
+                      viewResults.push(`**浏览器历史**: 空的`);
+                    }
+                    break;
+                    
+                  case 'memo':
+                    appName = '备忘录';
+                    appData = userChat.myPhoneMemos || [];
+                    if (appData.length > 0) {
+                      const memoSummary = appData.slice(0, 5).map(memo => 
+                        `- ${memo.title || '无标题'}: ${memo.content.substring(0, 30)}...`
+                      ).join('\n');
+                      viewResults.push(`**备忘录** (共${appData.length}条):\n${memoSummary}`);
+                    } else {
+                      viewResults.push(`**备忘录**: 空的`);
+                    }
+                    break;
+                    
+                  case 'diary':
+                    appName = '日记';
+                    appData = userChat.myPhoneDiaries || [];
+                    if (appData.length > 0) {
+                      const diarySummary = appData.slice(0, 3).map(diary => 
+                        `- ${diary.date}: ${diary.content.substring(0, 50)}...`
+                      ).join('\n');
+                      viewResults.push(`**日记** (共${appData.length}篇):\n${diarySummary}`);
+                    } else {
+                      viewResults.push(`**日记**: 空的`);
+                    }
+                    break;
+                    
+                  case 'music':
+                    appName = '网易云音乐';
+                    appData = userChat.myPhoneMusicPlaylist || [];
+                    if (appData.length > 0) {
+                      const musicSummary = appData.slice(0, 5).map(song => 
+                        `- ${song.title} - ${song.artist}`
+                      ).join('\n');
+                      viewResults.push(`**网易云音乐播放列表** (共${appData.length}首歌):\n${musicSummary}`);
+                    } else {
+                      viewResults.push(`**网易云音乐播放列表**: 空的`);
+                    }
+                    break;
+                    
+                  case 'app_usage':
+                    appName = 'APP使用记录';
+                    appData = userChat.myPhoneAppUsage || [];
+                    if (appData.length > 0) {
+                      const usageSummary = appData.slice(0, 5).map(record => {
+                        const hours = Math.floor(record.usageTimeMinutes / 60);
+                        const minutes = record.usageTimeMinutes % 60;
+                        let timeString = '';
+                        if (hours > 0) timeString += `${hours}小时`;
+                        if (minutes > 0) timeString += `${minutes}分钟`;
+                        if (!timeString) timeString = '小于1分钟';
+                        return `- ${record.appName} (${record.category || '其他'}): ${timeString}`;
+                      }).join('\n');
+                      viewResults.push(`**APP使用记录** (共${appData.length}条):\n${usageSummary}`);
+                    } else {
+                      viewResults.push(`**APP使用记录**: 空的`);
+                    }
+                    break;
+                }
+              }
+              
+              // 将查看结果作为隐藏的系统消息注入到对话中
+              const viewResultMessage = {
+                role: 'system',
+                content: `[系统提示：你查看了${chat.settings.myNickname || '用户'}的手机，以下是真实数据]\n\n${viewResults.join('\n\n')}\n\n[请基于以上真实数据给出你的感想和反应，不要编造内容]`,
+                timestamp: Date.now(),
+                isHidden: true
+              };
+              
+              chat.history.push(viewResultMessage);
+              console.log(`📱 AI查看了User手机: ${appsToView.join(', ')}`);
+            }
+            continue;
           case 'update_thoughts':
             if (!chat.isGroup) {
               if (msgData.heartfelt_voice) {
@@ -32052,7 +32399,7 @@ window.toggleReadingFullscreen = toggleReadingFullscreen;
         items = char.myPhoneDiaries || [];
         break;
       case 'usage':
-        items = char.myPhoneAppUsageLog || [];
+        items = char.myPhoneAppUsage || [];
         break;
       case 'music':
         items = char.myPhoneMusicPlaylist || [];
@@ -32158,9 +32505,9 @@ window.toggleReadingFullscreen = toggleReadingFullscreen;
         });
         break;
       case 'usage':
-        if (!char.myPhoneAppUsageLog) char.myPhoneAppUsageLog = [];
+        if (!char.myPhoneAppUsage) char.myPhoneAppUsage = [];
         indicesToDelete.forEach(idx => {
-          char.myPhoneAppUsageLog.splice(idx, 1);
+          char.myPhoneAppUsage.splice(idx, 1);
         });
         break;
       case 'music':
@@ -36978,22 +37325,36 @@ async function handleGenerateMyPhoneAppUsage() {
   const chat = state.chats[activeMyPhoneCharacterId];
   if (!chat) return;
 
-  // 简单生成一些模拟的使用记录
-  const apps = ['qq', 'album', 'browser', 'taobao', 'memo', 'diary', 'amap', 'music', 'bilibili', 'reddit'];
+  // 生成模拟的使用记录，格式与手动添加一致
+  const apps = [
+    { name: 'QQ', category: '社交' },
+    { name: '相册', category: '工具' },
+    { name: '浏览器', category: '工具' },
+    { name: '淘宝', category: '购物' },
+    { name: '备忘录', category: '工具' },
+    { name: '日记', category: '生活' },
+    { name: '高德地图', category: '出行' },
+    { name: '网易云音乐', category: '娱乐' },
+    { name: 'B站', category: '娱乐' },
+    { name: '微博', category: '社交' },
+    { name: '抖音', category: '娱乐' },
+    { name: '小红书', category: '生活' }
+  ];
   const usageLog = [];
   
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 15; i++) {
     const app = apps[Math.floor(Math.random() * apps.length)];
-    const date = new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000);
+    const date = Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000;
     usageLog.push({
-      app: app,
-      timestamp: date.toISOString(),
-      date: date.toLocaleDateString('zh-CN'),
-      time: date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+      appName: app.name,
+      category: app.category,
+      usageTimeMinutes: Math.floor(Math.random() * 180) + 5, // 5-185分钟
+      iconUrl: '', // 可以后续添加图标URL
+      timestamp: date
     });
   }
 
-  chat.myPhoneAppUsageLog = usageLog.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  chat.myPhoneAppUsage = usageLog.sort((a, b) => b.timestamp - a.timestamp);
   await db.chats.put(chat);
 }
 
@@ -39449,6 +39810,7 @@ async function exportAppearanceSettings() {
     'read-together-btn',
     'open-nai-gallery-btn',
     'open-todo-list-btn',
+    'open-pet-manager-btn',
     'open-quick-reply-btn',
     'stop-api-call-btn'
   ];
@@ -50312,6 +50674,211 @@ function getTodoDateString(date) {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+// ==================== 宠物管理系统 ====================
+
+let currentEditingPetId = null; // 当前正在编辑的宠物ID
+
+// 打开宠物管理界面
+async function openPetManager() {
+  document.getElementById('pet-manager-modal').classList.add('visible');
+  await renderPetsList();
+}
+
+// 渲染宠物列表
+async function renderPetsList() {
+  const container = document.getElementById('pets-list-container');
+  container.innerHTML = '';
+  
+  if (state.pets.length === 0) {
+    container.innerHTML = '<div style="text-align: center; color: #999; padding: 30px;">还没有宠物，点击上方按钮添加第一个宠物吧！</div>';
+    return;
+  }
+  
+  for (const pet of state.pets) {
+    const petCard = document.createElement('div');
+    petCard.className = 'pet-card';
+    petCard.style.cssText = 'border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #fafafa;';
+    
+    petCard.innerHTML = `
+      <div style="display: flex; gap: 15px; align-items: center;">
+        <img src="${pet.avatar || 'https://i.postimg.cc/nrH9kLb7/default-pet.png'}" 
+             style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #ddd;">
+        <div style="flex: 1;">
+          <div style="font-weight: bold; font-size: 16px; margin-bottom: 5px;">${escapeHTML(pet.name)}</div>
+          <div style="font-size: 13px; color: #666; margin-bottom: 3px;">性格: ${escapeHTML(pet.personality)}</div>
+          <div style="font-size: 12px; color: #999;">阅读对话: 最近${pet.historyCount}条</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <button class="form-button-secondary edit-pet-btn" data-pet-id="${pet.id}" 
+                  style="margin: 0; padding: 8px 15px; font-size: 13px;">编辑</button>
+          <button class="form-button-secondary delete-pet-btn" data-pet-id="${pet.id}" 
+                  style="margin: 0; padding: 8px 15px; font-size: 13px; background-color: #ffebee; color: #d32f2f; border-color: #ffcdd2;">删除</button>
+        </div>
+      </div>
+    `;
+    
+    container.appendChild(petCard);
+  }
+  
+  // 绑定编辑和删除按钮事件
+  container.querySelectorAll('.edit-pet-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const petId = parseInt(btn.dataset.petId);
+      openPetEditor(petId);
+    });
+  });
+  
+  container.querySelectorAll('.delete-pet-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const petId = parseInt(btn.dataset.petId);
+      await deletePet(petId);
+    });
+  });
+}
+
+// 打开宠物编辑器
+async function openPetEditor(petId) {
+  currentEditingPetId = petId;
+  
+  const modal = document.getElementById('pet-editor-modal');
+  const title = document.getElementById('pet-editor-title');
+  
+  // 清空表单
+  document.getElementById('pet-name-input').value = '';
+  document.getElementById('pet-personality-input').value = '';
+  document.getElementById('pet-persona-input').value = '';
+  document.getElementById('pet-feeling-user-input').value = '';
+  document.getElementById('pet-feeling-char-input').value = '';
+  document.getElementById('pet-history-count-input').value = '10';
+  document.getElementById('pet-avatar-preview').src = '';
+  document.getElementById('pet-avatar-preview').style.display = 'none';
+  
+  if (petId !== null) {
+    // 编辑模式
+    title.textContent = '编辑宠物';
+    const pet = state.pets.find(p => p.id === petId);
+    if (pet) {
+      document.getElementById('pet-name-input').value = pet.name;
+      document.getElementById('pet-personality-input').value = pet.personality;
+      document.getElementById('pet-persona-input').value = pet.persona || '';
+      document.getElementById('pet-feeling-user-input').value = pet.feelingToUser || '';
+      document.getElementById('pet-feeling-char-input').value = pet.feelingToChar || '';
+      document.getElementById('pet-history-count-input').value = pet.historyCount || 10;
+      if (pet.avatar) {
+        document.getElementById('pet-avatar-preview').src = pet.avatar;
+        document.getElementById('pet-avatar-preview').style.display = 'block';
+      }
+    }
+  } else {
+    // 添加模式
+    title.textContent = '添加宠物';
+  }
+  
+  modal.classList.add('visible');
+}
+
+// 处理宠物头像上传
+async function handlePetAvatarUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const preview = document.getElementById('pet-avatar-preview');
+    preview.src = e.target.result;
+    preview.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
+// 保存宠物
+async function savePet() {
+  const name = document.getElementById('pet-name-input').value.trim();
+  const personality = document.getElementById('pet-personality-input').value.trim();
+  const persona = document.getElementById('pet-persona-input').value.trim();
+  const feelingToUser = document.getElementById('pet-feeling-user-input').value.trim();
+  const feelingToChar = document.getElementById('pet-feeling-char-input').value.trim();
+  const historyCount = parseInt(document.getElementById('pet-history-count-input').value) || 10;
+  const avatarPreview = document.getElementById('pet-avatar-preview');
+  const avatar = avatarPreview.style.display !== 'none' ? avatarPreview.src : '';
+  
+  // 验证必填字段
+  if (!name) {
+    await showCustomAlert('提示', '请输入宠物名字！');
+    return;
+  }
+  
+  if (!personality) {
+    await showCustomAlert('提示', '请输入宠物性格！');
+    return;
+  }
+  
+  try {
+    if (currentEditingPetId !== null) {
+      // 编辑模式
+      const pet = state.pets.find(p => p.id === currentEditingPetId);
+      if (pet) {
+        pet.name = name;
+        pet.personality = personality;
+        pet.persona = persona;
+        pet.feelingToUser = feelingToUser;
+        pet.feelingToChar = feelingToChar;
+        pet.historyCount = historyCount;
+        pet.avatar = avatar;
+        
+        await db.pets.put(pet);
+      }
+    } else {
+      // 添加模式
+      const newPet = {
+        name: name,
+        personality: personality,
+        persona: persona,
+        feelingToUser: feelingToUser,
+        feelingToChar: feelingToChar,
+        historyCount: historyCount,
+        avatar: avatar
+      };
+      
+      const petId = await db.pets.add(newPet);
+      newPet.id = petId;
+      state.pets.push(newPet);
+    }
+    
+    // 关闭编辑器
+    document.getElementById('pet-editor-modal').classList.remove('visible');
+    
+    // 刷新列表
+    await renderPetsList();
+    
+    await showCustomAlert('成功', currentEditingPetId !== null ? '宠物信息已更新！' : '宠物添加成功！');
+  } catch (error) {
+    console.error('保存宠物失败:', error);
+    await showCustomAlert('错误', '保存失败: ' + error.message);
+  }
+}
+
+// 删除宠物
+async function deletePet(petId) {
+  const pet = state.pets.find(p => p.id === petId);
+  if (!pet) return;
+  
+  const confirmed = await showCustomConfirm('确认删除', `确定要删除宠物"${pet.name}"吗？`);
+  if (!confirmed) return;
+  
+  try {
+    await db.pets.delete(petId);
+    state.pets = state.pets.filter(p => p.id !== petId);
+    await renderPetsList();
+    await showCustomAlert('成功', '宠物已删除！');
+  } catch (error) {
+    console.error('删除宠物失败:', error);
+    await showCustomAlert('错误', '删除失败: ' + error.message);
+  }
+}
+
+// ==================== 宠物管理系统结束 ====================
+
 async function openTodoList() {
     if (!state.activeChatId) return;
     
@@ -53870,6 +54437,7 @@ ${recentHistoryWithUser}
       // 新增：保存心声和动态功能开关
       state.globalSettings.enableThoughts = document.getElementById('global-enable-thoughts-switch').checked;
       state.globalSettings.enableQzoneActions = document.getElementById('global-enable-qzone-actions-switch').checked;
+      state.globalSettings.enableViewMyPhone = document.getElementById('global-enable-view-myphone-switch').checked;
       
       state.globalSettings.chatRenderWindow = parseInt(document.getElementById('chat-render-window-input').value) || 50;
       state.globalSettings.chatListRenderWindow = parseInt(document.getElementById('chat-list-render-window-input').value) || 30;
@@ -54542,9 +55110,17 @@ if (isGroup) {
           qzoneSelect.value = String(chat.settings.enableQzoneActions);
         }
         
+        const viewMyPhoneSelect = document.getElementById('chat-enable-view-myphone-select');
+        if (chat.settings.enableViewMyPhone === null || chat.settings.enableViewMyPhone === undefined) {
+          viewMyPhoneSelect.value = 'null';
+        } else {
+          viewMyPhoneSelect.value = String(chat.settings.enableViewMyPhone);
+        }
+        
         // 更新全局设置状态显示
         document.getElementById('global-thoughts-status').textContent = state.globalSettings.enableThoughts ? '开启' : '关闭';
         document.getElementById('global-qzone-status').textContent = state.globalSettings.enableQzoneActions ? '开启' : '关闭';
+        document.getElementById('global-view-myphone-status').textContent = state.globalSettings.enableViewMyPhone ? '开启' : '关闭';
         
         const offlineModeToggle = document.getElementById('offline-mode-toggle');
         const offlineModeOptions = document.getElementById('offline-mode-options');
@@ -54963,6 +55539,13 @@ if (isGroup) {
           chat.settings.enableQzoneActions = null;
         } else {
           chat.settings.enableQzoneActions = qzoneValue === 'true';
+        }
+        
+        const viewMyPhoneValue = document.getElementById('chat-enable-view-myphone-select').value;
+        if (viewMyPhoneValue === 'null') {
+          chat.settings.enableViewMyPhone = null;
+        } else {
+          chat.settings.enableViewMyPhone = viewMyPhoneValue === 'true';
         }
         
         chat.settings.offlineMinLength = parseInt(document.getElementById('offline-min-length-input').value) || 100;
@@ -58067,7 +58650,7 @@ if (isGroup) {
 
     chatInputForMention.addEventListener('input', () => {
 
-      if (!state.activeChatId || !state.chats[state.activeChatId].isGroup) {
+      if (!state.activeChatId) {
         chatMentionPopup.style.display = 'none';
         return;
       }
@@ -58077,31 +58660,54 @@ if (isGroup) {
       const atMatch = value.match(/@([\p{L}\w]*)$/u);
 
       if (atMatch) {
-
-        const myNickname = chat.settings.myNickname || '我';
-        const namesToMention = chat.members
-          .map(member => member.groupNickname)
-          .filter(name => name !== myNickname);
+        const searchTerm = atMatch[1];
+        
+        // 收集所有可以@的对象（群成员 + 宠物）
+        let namesToMention = [];
+        
+        // 如果是群聊，添加群成员
+        if (chat.isGroup) {
+          const myNickname = chat.settings.myNickname || '我';
+          const memberNames = chat.members
+            .map(member => ({ name: member.groupNickname, type: 'member' }))
+            .filter(item => item.name !== myNickname);
+          namesToMention = namesToMention.concat(memberNames);
+        }
+        
+        // 添加宠物
+        const petNames = state.pets.map(pet => ({ name: pet.name, type: 'pet' }));
+        namesToMention = namesToMention.concat(petNames);
 
         chatMentionPopup.innerHTML = '';
+        
         if (namesToMention.length > 0) {
-          const searchTerm = atMatch[1];
-
-          namesToMention.forEach(name => {
-            if (name.toLowerCase().includes(searchTerm.toLowerCase())) {
-              const item = document.createElement('div');
-              item.className = 'at-mention-item';
-              item.textContent = name;
-
-              item.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                const newText = value.substring(0, atMatch.index) + `@${name} `;
-                chatInputForMention.value = newText;
-                chatMentionPopup.style.display = 'none';
-                chatInputForMention.focus();
-              });
-              chatMentionPopup.appendChild(item);
+          // 过滤匹配的名字
+          const filteredNames = namesToMention.filter(item => 
+            item.name.toLowerCase().includes(searchTerm.toLowerCase())
+          );
+          
+          filteredNames.forEach(item => {
+            const menuItem = document.createElement('div');
+            menuItem.className = 'at-mention-item';
+            
+            // 如果是宠物，添加一个标识
+            if (item.type === 'pet') {
+              menuItem.innerHTML = `
+                <span>${escapeHTML(item.name)}</span>
+                <span style="font-size: 11px; color: #999; margin-left: 8px;">🐾 宠物</span>
+              `;
+            } else {
+              menuItem.textContent = item.name;
             }
+
+            menuItem.addEventListener('mousedown', (e) => {
+              e.preventDefault();
+              const newText = value.substring(0, atMatch.index) + `@${item.name} `;
+              chatInputForMention.value = newText;
+              chatMentionPopup.style.display = 'none';
+              chatInputForMention.focus();
+            });
+            chatMentionPopup.appendChild(menuItem);
           });
 
           chatMentionPopup.style.display = chatMentionPopup.children.length > 0 ? 'block' : 'none';
@@ -60704,6 +61310,28 @@ document.getElementById('export-appearance-btn').addEventListener('click', expor
     document.getElementById('todo-list-back-btn').addEventListener('click', () => showScreen('chat-interface-screen'));
     
     document.getElementById('todo-prev-day-btn').addEventListener('click', () => changeTodoDate(-1));
+
+// --- Pet Management Events ---
+    const petBtn = document.getElementById('open-pet-manager-btn');
+    if(petBtn) petBtn.addEventListener('click', openPetManager);
+    
+    document.getElementById('close-pet-manager-btn').addEventListener('click', () => {
+      document.getElementById('pet-manager-modal').classList.remove('visible');
+    });
+    
+    document.getElementById('add-new-pet-btn').addEventListener('click', () => openPetEditor(null));
+    
+    document.getElementById('close-pet-editor-btn').addEventListener('click', () => {
+      document.getElementById('pet-editor-modal').classList.remove('visible');
+    });
+    
+    document.getElementById('cancel-pet-editor-btn').addEventListener('click', () => {
+      document.getElementById('pet-editor-modal').classList.remove('visible');
+    });
+    
+    document.getElementById('save-pet-btn').addEventListener('click', savePet);
+    
+    document.getElementById('pet-avatar-input').addEventListener('change', handlePetAvatarUpload);
     document.getElementById('todo-next-day-btn').addEventListener('click', () => changeTodoDate(1));
     
     document.getElementById('add-todo-btn').addEventListener('click', () => openTodoEditor(null));

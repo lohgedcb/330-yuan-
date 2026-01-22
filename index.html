@@ -1533,6 +1533,17 @@
                 </label>
             </div>
             
+            <div class="settings-item">
+                <div>
+                    <div style="font-weight: 500;">查看User手机</div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">AI可以主动查看你的手机APP（QQ、相册、淘宝、高德等），并给出感想</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="global-enable-view-myphone-switch">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            
             <div style="font-size: 12px; color: #666; margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 6px;">
                 💡 提示：这是全局默认设置。你可以在每个角色的聊天设置中单独覆盖这些选项。
             </div>
@@ -2194,6 +2205,15 @@
         <path d="M9 11l3 3L22 4"></path>
         <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
     </svg>
+</button> <button id="open-pet-manager-btn" class="chat-action-icon-btn action-button" title="宠物管理">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 10c-2 0-3.5-1.5-3.5-3.5S10 3 12 3s3.5 1.5 3.5 3.5S14 10 12 10z"></path>
+        <path d="M6 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"></path>
+        <path d="M18 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"></path>
+        <path d="M4 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"></path>
+        <path d="M20 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"></path>
+        <path d="M12 21c-3.3 0-6-2.7-6-6 0-1.5.5-2.9 1.5-4h9c1 1.1 1.5 2.5 1.5 4 0 3.3-2.7 6-6 6z"></path>
+    </svg>
 </button> <button id="stop-api-call-btn" class="chat-action-icon-btn action-button" title="暂停调用" style="display: none;"> <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
               <rect x="9" y="8" width="2" height="8" rx="1" fill="currentColor"></rect>
@@ -2619,6 +2639,66 @@
         <div class="modal-footer"> <button class="save" id="close-sticker-category-manager-btn" style="width: 100%;"data-lang-key="done">完成</button> </div>
       </div>
     </div>
+    <div id="pet-manager-modal" class="modal">
+      <div class="modal-content" style="height: 80%; max-height: 700px;">
+        <div class="modal-header"> <span>宠物管理</span> </div>
+        <div class="modal-body" style="overflow-y: auto;">
+          <div class="form-group">
+            <button id="add-new-pet-btn" class="form-button" style="width: 100%; margin-bottom: 20px;">+ 添加新宠物</button>
+          </div>
+          <hr style="opacity: 0.2;">
+          <div id="pets-list-container" style="display: flex; flex-direction: column; gap: 15px;">
+          </div>
+        </div>
+        <div class="modal-footer"> <button class="save" id="close-pet-manager-btn" style="width: 100%;">完成</button> </div>
+      </div>
+    </div>
+    <div id="pet-editor-modal" class="modal">
+      <div class="modal-content" style="height: 85%; max-height: 750px;">
+        <div class="modal-header"> <span id="pet-editor-title">添加宠物</span> </div>
+        <div class="modal-body" style="overflow-y: auto;">
+          <div class="form-group">
+            <label>宠物名字 *</label>
+            <input type="text" id="pet-name-input" placeholder="给宠物起个名字..." maxlength="20">
+          </div>
+          <div class="form-group">
+            <label>宠物头像</label>
+            <div style="display: flex; align-items: center; gap: 15px;">
+              <img id="pet-avatar-preview" src="" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; display: none; border: 2px solid #ddd;">
+              <div style="flex: 1;">
+                <input type="file" id="pet-avatar-input" accept="image/*" style="display: none;">
+                <button type="button" class="form-button-secondary" onclick="document.getElementById('pet-avatar-input').click();" style="width: 100%; margin-top: 0;">选择图片</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>性格 *</label>
+            <input type="text" id="pet-personality-input" placeholder="例如：活泼、安静、傲娇..." maxlength="50">
+          </div>
+          <div class="form-group">
+            <label>人设（可选）</label>
+            <textarea id="pet-persona-input" rows="4" placeholder="详细描述宠物的性格、特点、行为方式等..." style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; resize: vertical;"></textarea>
+          </div>
+          <div class="form-group">
+            <label>对USER的感情</label>
+            <input type="text" id="pet-feeling-user-input" placeholder="例如：非常亲密、喜欢、依赖..." maxlength="50">
+          </div>
+          <div class="form-group">
+            <label>对CHAR的感情</label>
+            <input type="text" id="pet-feeling-char-input" placeholder="例如：友好、警惕、喜欢..." maxlength="50">
+          </div>
+          <div class="form-group">
+            <label>阅读对话最近条数</label>
+            <input type="number" id="pet-history-count-input" value="10" min="1" max="50" style="width: 100px;">
+            <small style="color: #666; display: block; margin-top: 5px;">宠物会参考最近N条对话来生成回复</small>
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; gap: 10px;">
+          <button class="form-button-secondary" id="cancel-pet-editor-btn" style="flex: 1; margin-top: 0;">取消</button>
+          <button class="save" id="save-pet-btn" style="flex: 1;">保存</button>
+        </div>
+      </div>
+    </div>
     <div id="incoming-call-modal" class="modal">
       <div class="incoming-call-content"> <img id="caller-avatar" class="caller-avatar" src="">
         <div id="caller-name" class="caller-name"></div>
@@ -3040,9 +3120,21 @@
                 </select>
             </div>
             
+            <div class="settings-item" id="ai-behavior-view-myphone-item">
+                <div>
+                    <div style="font-weight: 500;">查看User手机</div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">AI可以主动查看你的手机APP，并给出感想</div>
+                </div>
+                <select id="chat-enable-view-myphone-select" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--secondary-bg);">
+                    <option value="null">使用全局设置</option>
+                    <option value="true">开启</option>
+                    <option value="false">关闭</option>
+                </select>
+            </div>
+            
             <div class="settings-item" id="ai-behavior-status-item">
                 <div style="font-size: 12px; color: #666; padding: 10px; background: #f5f5f5; border-radius: 6px; width: 100%;">
-                    💡 当前全局设置：心声功能 <span id="global-thoughts-status">关闭</span>，动态功能 <span id="global-qzone-status">关闭</span>
+                    💡 当前全局设置：心声功能 <span id="global-thoughts-status">关闭</span>，动态功能 <span id="global-qzone-status">关闭</span>，查看手机 <span id="global-view-myphone-status">关闭</span>
                 </div>
             </div>
         </div>
