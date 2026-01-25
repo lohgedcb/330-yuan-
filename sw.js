@@ -1,158 +1,149 @@
-// Service Worker 文件 (sw.js)
-// 【强制网络优先策略】- 始终从服务器获取最新版本，不使用缓存
+// Service Worker - 网络优先策略 + 自动更新检测
+// 确保仓库更新时始终获取最新版本
 
-// 缓存版本号（强制更新策略）
-const CACHE_VERSION = 'v0.0.1';
-const CACHE_NAME = `ephone-cache-${CACHE_VERSION}`;
-
-// 需要被缓存的文件列表（仅用于离线访问）
-const URLS_TO_CACHE = [
+const CACHE_NAME = 'phone-ui-v' + Date.now(); // 使用时间戳作为缓存版本
+const ASSETS_TO_CACHE = [
+  './',
   './index.html',
   './style.css',
   './script.js',
-  'https://unpkg.com/dexie/dist/dexie.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
-  'https://phoebeboo.github.io/mewoooo/pp.js',
-  'https://cdn.jsdelivr.net/npm/streamsaver@2.0.6/StreamSaver.min.js',
-  'https://s3plus.meituan.net/opapisdk/op_ticket_885190757_1758510900942_qdqqd_djw0z2.jpeg',
-  'https://s3plus.meituan.net/opapisdk/op_ticket_885190757_1756312261242_qdqqd_g0eriz.jpeg'
+  './manifest.json'
 ];
 
-// 1. 安装事件：当 Service Worker 首次被注册时触发
-self.addEventListener('install', event => {
-  console.log('[SW] 正在安装 Service Worker (网络优先策略)...');
+// 安装 Service Worker
+self.addEventListener('install', (event) => {
+  console.log('[SW] 安装中...版本:', CACHE_NAME);
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        console.log('[SW] 缓存已打开，正在缓存核心文件（用于离线访问）...');
-        return cache.addAll(URLS_TO_CACHE);
-      })
-      .then(() => {
-        console.log('[SW] 所有核心文件已缓存成功！');
-        return self.skipWaiting();
-      })
+    caches.open(CACHE_NAME).then((cache) => {
+      console.log('[SW] 缓存文件');
+      return cache.addAll(ASSETS_TO_CACHE);
+    }).then(() => {
+      return self.skipWaiting(); // 立即激活新的 Service Worker
+    })
   );
 });
 
-// 2. 激活事件：当 Service Worker 被激活时触发
-self.addEventListener('activate', event => {
-  console.log('[SW] 正在激活 Service Worker...');
+// 激活 Service Worker
+self.addEventListener('activate', (event) => {
+  console.log('[SW] 激活中...');
   event.waitUntil(
-    caches.keys().then(cacheNames => {
+    caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.map(cacheName => {
+        cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
-            console.log('[SW] 正在删除旧的缓存:', cacheName);
+            console.log('[SW] 删除旧缓存:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
     }).then(() => {
-        console.log('[SW] Service Worker 已激活！使用网络优先策略。');
-        return self.clients.claim();
+      return self.clients.claim(); // 立即控制所有页面
     })
   );
 });
 
-// 3. 拦截网络请求事件：使用【强制网络优先策略 - 不使用缓存】
-self.addEventListener('fetch', event => {
-  // 只对 GET 请求进行处理
-  if (event.request.method !== 'GET') {
-    return;
-  }
-
-  event.respondWith(
-    // 【强制网络优先】始终从网络获取最新版本，添加 no-cache 头
-    fetch(event.request, {
-      cache: 'no-store',
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      }
-    })
-      .then(response => {
-        // 网络请求成功，直接返回，不缓存
-        console.log('[SW] 从网络获取最新版本:', event.request.url);
-        return response;
+// 网络优先策略 - 始终尝试从网络获取最新内容
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  
+  // 添加时间戳参数，强制绕过浏览器缓存
+  const shouldBypassCache = url.pathname.endsWith('.html') || 
+                           url.pathname.endsWith('.css') || 
+                           url.pathname.endsWith('.js');
+  
+  if (shouldBypassCache) {
+    // 为关键资源添加时间戳，确保获取最新版本
+    const timestamp = Date.now();
+    const fetchUrl = event.request.url + (event.request.url.includes('?') ? '&' : '?') + '_t=' + timestamp;
+    
+    event.respondWith(
+      fetch(fetchUrl, {
+        cache: 'no-store', // 不使用浏览器缓存
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
       })
-      .catch(() => {
-        // 如果网络请求失败（离线或网络错误），则使用缓存作为后备
-        console.log('[SW] 网络请求失败，使用缓存作为后备:', event.request.url);
-        return caches.match(event.request);
-      })
-  );
-});
-
-// 4. 推送通知事件：接收服务器推送的通知
-self.addEventListener('push', event => {
-  console.log('[SW] 收到推送消息:', event);
-  
-  let data = {};
-  if (event.data) {
-    try {
-      data = event.data.json();
-    } catch (e) {
-      data = { body: event.data.text() };
-    }
-  }
-  
-  const title = data.title || 'EPhone';
-  const options = {
-    body: data.body || '您有新消息',
-    icon: data.icon || 'https://s3plus.meituan.net/opapisdk/op_ticket_885190757_1758510900942_qdqqd_djw0z2.jpeg',
-    badge: data.badge || 'https://s3plus.meituan.net/opapisdk/op_ticket_885190757_1758510900942_qdqqd_djw0z2.jpeg',
-    tag: data.tag || 'default',
-    data: data.data || {},
-    requireInteraction: true,
-    vibrate: [200, 100, 200],
-    timestamp: Date.now()
-  };
-  
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
-});
-
-// 5. 接收来自页面的消息（用于手动触发通知）
-self.addEventListener('message', event => {
-  console.log('[SW] 收到页面消息:', event.data);
-  
-  if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
-    const { title, options } = event.data;
-    event.waitUntil(
-      self.registration.showNotification(title, options)
+        .then((response) => {
+          // 如果网络请求成功，更新缓存
+          if (response && response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          // 网络请求失败时，尝试从缓存获取
+          return caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+              console.log('[SW] 从缓存返回:', event.request.url);
+              return cachedResponse;
+            }
+            return new Response('离线状态，内容不可用', {
+              status: 503,
+              statusText: 'Service Unavailable',
+              headers: new Headers({
+                'Content-Type': 'text/plain; charset=utf-8'
+              })
+            });
+          });
+        })
+    );
+  } else {
+    // 其他资源使用普通网络优先策略
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            return new Response('离线状态，内容不可用', {
+              status: 503,
+              statusText: 'Service Unavailable'
+            });
+          });
+        })
     );
   }
 });
 
-// 6. 通知点击事件：用户点击通知时触发
-self.addEventListener('notificationclick', event => {
-  console.log('[SW] 通知被点击:', event);
-  
-  event.notification.close();
-  
-  const chatId = event.notification.data?.chatId;
-  const urlToOpen = chatId ? `/?openChat=${chatId}` : '/';
-  
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then(clientList => {
-        // 如果已有窗口打开，聚焦它
-        for (let client of clientList) {
-          if (client.url.includes(self.location.origin) && 'focus' in client) {
-            return client.focus().then(client => {
-              if (chatId) {
-                client.postMessage({ type: 'OPEN_CHAT', chatId });
-              }
-              return client;
-            });
-          }
-        }
-        // 否则打开新窗口
-        if (clients.openWindow) {
-          return clients.openWindow(urlToOpen);
-        }
+// 定期检查更新（每10分钟）
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+  if (event.data && event.data.type === 'CHECK_UPDATE') {
+    // 清除所有缓存，强制重新获取
+    event.waitUntil(
+      caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => caches.delete(cacheName))
+        );
+      }).then(() => {
+        return self.registration.update();
       })
-  );
+    );
+  }
+});
+
+// 后台同步 - 定期检查更新
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'update-check') {
+    event.waitUntil(
+      self.registration.update().then(() => {
+        console.log('[SW] 后台更新检查完成');
+      })
+    );
+  }
 });
