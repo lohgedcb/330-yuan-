@@ -26,6 +26,7 @@
   <script src="online-chat-integration.js" defer></script>
   <script src="sticker-vision.js" defer></script>
   <script src="notification-manager.js" defer></script>
+  <script src="character-generator.js" defer></script>
   <script src="script.js" defer="defer"></script>
 </head>
 <body>
@@ -230,6 +231,12 @@
                   <img id="icon-img-myphone" src="https://i.postimg.cc/MTC3Tkw8/IMG-6436.jpg" alt="Myphone">
                 </div>
                 <span class="label">Myphone</span>
+              </div>
+              <div class="desktop-app-icon" onclick="openCharacterGeneratorScreen()" style="display: inline-block;">
+                <div class="icon-bg-desktop">
+                  <img id="icon-img-char-generator" src="https://i.postimg.cc/nzGYM8qb/character-gen.jpg" alt="角色生成">
+                </div>
+                <span class="label">角色生成</span>
               </div>
             </div>
           </div>
@@ -1078,6 +1085,8 @@
       </div>
     </div>
     
+    <!-- 角色生成器屏幕将由character-generator.js动态创建 -->
+    
     <div id="world-book-screen" class="screen">
       <div class="header">
         <div class="header-left-actions"> <span class="back-btn" onclick="showScreen('home-screen')">‹</span> <span class="action-btn" id="import-world-book-btn" title="导入世界书"data-lang-key-title="worldBookImportTitle"> <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor"
@@ -1206,7 +1215,13 @@
                 </div>
             </div>
             <div class="settings-item">
-                <label>模型</label>
+                <label>模型（手写）</label>
+                <div class="settings-right">
+                    <input type="text" id="model-input" placeholder="可手写模型名称或从下方拉取自动填入" style="flex-grow: 1;">
+                </div>
+            </div>
+            <div class="settings-item">
+                <label>拉取模型</label>
                 <div class="settings-right">
                     <select id="model-select" class="settings-select" style="flex-grow: 1; width: auto;"></select>
                     <button id="fetch-models-btn" class="settings-mini-btn">拉取</button>
@@ -1231,7 +1246,13 @@
             </div>
             <!-- 修改点：模型和拉取按钮在一行 -->
             <div class="settings-item">
-                <label>模型</label>
+                <label>模型（手写）</label>
+                <div class="settings-right">
+                    <input type="text" id="secondary-model-input" placeholder="可手写模型名称或从下方拉取自动填入" style="flex-grow: 1;">
+                </div>
+            </div>
+            <div class="settings-item">
+                <label>拉取模型</label>
                 <div class="settings-right">
                      <!-- 下拉框占据剩余空间 -->
                     <select id="secondary-model-select" class="settings-select" style="flex-grow: 1; width: auto;"></select>
@@ -1546,6 +1567,64 @@
             
             <div style="font-size: 12px; color: #666; margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 6px;">
                 💡 提示：这是全局默认设置。你可以在每个角色的聊天设置中单独覆盖这些选项。
+            </div>
+        </div>
+
+        <!-- 提示词定义 -->
+        <div class="settings-header">提示词定义</div>
+        <div class="settings-section">
+            <!-- 自定义提示词主开关 -->
+            <div class="settings-item">
+                <label>启用自定义提示词</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="custom-prompt-enabled-switch">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            
+            <!-- 自定义提示词详情 -->
+            <div id="custom-prompt-details" style="display:none;">
+                <!-- 自定义模式选择 -->
+                <div class="settings-item">
+                    <div>
+                        <div style="font-weight: 500;">自定义模式</div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">选择如何应用你的自定义提示词</div>
+                    </div>
+                    <div class="settings-right">
+                        <select id="custom-prompt-mode-select" class="settings-select">
+                            <option value="append">追加模式（推荐）</option>
+                            <option value="override">覆盖模式（高级）</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div style="font-size: 12px; color: #666; margin: 10px 0; padding: 10px; background: #fff3cd; border-radius: 6px;">
+                    <strong>⚠️ 模式说明：</strong><br>
+                    • <strong>追加模式</strong>：你的内容会添加到原提示词末尾（不影响指令列表）<br>
+                    • <strong>覆盖模式</strong>：完全替换核心提示词（保留指令列表），需谨慎使用
+                </div>
+                
+                <!-- 文本框 -->
+                <div class="settings-item" style="flex-direction: column; align-items: stretch;">
+                    <label style="margin-bottom: 8px;">自定义提示词内容</label>
+                    <textarea id="custom-prompt-textarea" 
+                        placeholder="在这里输入你的自定义提示词规则&#10;&#10;例如：&#10;1. 角色的性格特征应基于人设，而非性别刻板印象&#10;2. 保持真实、自然的语言风格，避免过度夸张的表达&#10;3. 角色是一个有自己思想和生活的完整个体，可以表达不同意见"
+                        style="width: 100%; min-height: 150px; padding: 10px; border: 1px solid #ddd; border-radius: 6px; resize: vertical; font-family: inherit; font-size: 14px;"
+                    ></textarea>
+                </div>
+                
+                <!-- 导入按钮区域 -->
+                <div class="settings-item" style="justify-content: space-around; margin-top: 10px;">
+                    <button id="import-prompt-btn" class="settings-mini-btn">导入文件</button>
+                    <button id="clear-custom-prompt-btn" class="settings-mini-btn">清空</button>
+                    <button id="preview-prompt-btn" class="settings-mini-btn">预览效果</button>
+                </div>
+                
+                <input type="file" id="import-prompt-file-input" accept=".txt,.json,.docx" style="display: none;">
+                
+                <div style="font-size: 11px; color: #999; margin-top: 10px; padding: 8px; background: #f9f9f9; border-radius: 4px;">
+                    💡 支持导入 TXT、JSON、DOCX 格式的文件。导入后的内容会自动填充到文本框中。
+                </div>
             </div>
         </div>
 
@@ -2205,15 +2284,6 @@
         <path d="M9 11l3 3L22 4"></path>
         <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
     </svg>
-</button> <button id="open-pet-manager-btn" class="chat-action-icon-btn action-button" title="宠物管理">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 10c-2 0-3.5-1.5-3.5-3.5S10 3 12 3s3.5 1.5 3.5 3.5S14 10 12 10z"></path>
-        <path d="M6 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"></path>
-        <path d="M18 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"></path>
-        <path d="M4 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"></path>
-        <path d="M20 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"></path>
-        <path d="M12 21c-3.3 0-6-2.7-6-6 0-1.5.5-2.9 1.5-4h9c1 1.1 1.5 2.5 1.5 4 0 3.3-2.7 6-6 6z"></path>
-    </svg>
 </button> <button id="stop-api-call-btn" class="chat-action-icon-btn action-button" title="暂停调用" style="display: none;"> <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
               <rect x="9" y="8" width="2" height="8" rx="1" fill="currentColor"></rect>
@@ -2336,6 +2406,7 @@
         <label class="select-all-label" style="display: flex; align-items: center; gap: 5px;">
             <input type="checkbox" id="select-all-playlist-checkbox"> 全选
         </label>
+        <button id="delete-selected-songs-btn" class="action-bar-btn" style="background-color: #ff3b30;">删除 (0)</button>
         <button id="upload-selected-to-catbox-btn" class="action-bar-btn" style="background-color: #007bff;">上传Catbox (0)</button>
       </div>
       </div> <input type="file" id="local-song-upload-input" accept="audio/*" multiple style="display: none;"> <input type="file" id="lrc-upload-input" accept=".lrc" style="display: none;">
@@ -2637,66 +2708,6 @@
           <div id="existing-sticker-categories-list" style="display: flex; flex-direction: column; gap: 10px;"> </div>
         </div>
         <div class="modal-footer"> <button class="save" id="close-sticker-category-manager-btn" style="width: 100%;"data-lang-key="done">完成</button> </div>
-      </div>
-    </div>
-    <div id="pet-manager-modal" class="modal">
-      <div class="modal-content" style="height: 80%; max-height: 700px;">
-        <div class="modal-header"> <span>宠物管理</span> </div>
-        <div class="modal-body" style="overflow-y: auto;">
-          <div class="form-group">
-            <button id="add-new-pet-btn" class="form-button" style="width: 100%; margin-bottom: 20px;">+ 添加新宠物</button>
-          </div>
-          <hr style="opacity: 0.2;">
-          <div id="pets-list-container" style="display: flex; flex-direction: column; gap: 15px;">
-          </div>
-        </div>
-        <div class="modal-footer"> <button class="save" id="close-pet-manager-btn" style="width: 100%;">完成</button> </div>
-      </div>
-    </div>
-    <div id="pet-editor-modal" class="modal">
-      <div class="modal-content" style="height: 85%; max-height: 750px;">
-        <div class="modal-header"> <span id="pet-editor-title">添加宠物</span> </div>
-        <div class="modal-body" style="overflow-y: auto;">
-          <div class="form-group">
-            <label>宠物名字 *</label>
-            <input type="text" id="pet-name-input" placeholder="给宠物起个名字..." maxlength="20">
-          </div>
-          <div class="form-group">
-            <label>宠物头像</label>
-            <div style="display: flex; align-items: center; gap: 15px;">
-              <img id="pet-avatar-preview" src="" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; display: none; border: 2px solid #ddd;">
-              <div style="flex: 1;">
-                <input type="file" id="pet-avatar-input" accept="image/*" style="display: none;">
-                <button type="button" class="form-button-secondary" onclick="document.getElementById('pet-avatar-input').click();" style="width: 100%; margin-top: 0;">选择图片</button>
-              </div>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>性格 *</label>
-            <input type="text" id="pet-personality-input" placeholder="例如：活泼、安静、傲娇..." maxlength="50">
-          </div>
-          <div class="form-group">
-            <label>人设（可选）</label>
-            <textarea id="pet-persona-input" rows="4" placeholder="详细描述宠物的性格、特点、行为方式等..." style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; resize: vertical;"></textarea>
-          </div>
-          <div class="form-group">
-            <label>对USER的感情</label>
-            <input type="text" id="pet-feeling-user-input" placeholder="例如：非常亲密、喜欢、依赖..." maxlength="50">
-          </div>
-          <div class="form-group">
-            <label>对CHAR的感情</label>
-            <input type="text" id="pet-feeling-char-input" placeholder="例如：友好、警惕、喜欢..." maxlength="50">
-          </div>
-          <div class="form-group">
-            <label>阅读对话最近条数</label>
-            <input type="number" id="pet-history-count-input" value="10" min="1" max="50" style="width: 100px;">
-            <small style="color: #666; display: block; margin-top: 5px;">宠物会参考最近N条对话来生成回复</small>
-          </div>
-        </div>
-        <div class="modal-footer" style="display: flex; gap: 10px;">
-          <button class="form-button-secondary" id="cancel-pet-editor-btn" style="flex: 1; margin-top: 0;">取消</button>
-          <button class="save" id="save-pet-btn" style="flex: 1;">保存</button>
-        </div>
       </div>
     </div>
     <div id="incoming-call-modal" class="modal">
@@ -3207,6 +3218,23 @@
             </div>
         </div>
 
+        <!-- API调用历史区域 -->
+        <div class="settings-section" id="api-history-section">
+            <div class="settings-item">
+                <label style="font-weight: 600; font-size: 16px;">API调用历史</label>
+            </div>
+            
+            <div style="padding: 0 15px;">
+                <div style="margin-bottom: 15px; color: var(--text-secondary); font-size: 13px;">
+                    查看每次发送给AI的原始提示词、调用信息和返回的原始数据
+                </div>
+                
+                <button id="view-api-history-btn" class="form-button" style="margin-bottom: 15px;">
+                    查看返回的提示词
+                </button>
+            </div>
+        </div>
+
         <!-- 第四组：高级功能 (TTS, NAI, 线下模式) -->
         <div class="settings-section">
              <!-- 时间戳显示格式 -->
@@ -3298,7 +3326,7 @@
              <div class="settings-item" id="sticker-vision-group">
                  <div>
                     <label>启用表情包识图</label>
-                    <div class="settings-desc">联机好友可看到AI识别的表情包内容</div>
+                    <div class="settings-desc">CHAR可以看到USER表情包的内容</div>
                  </div>
                  <label class="toggle-switch"> 
                     <input type="checkbox" id="enable-sticker-vision-checkbox"> 
@@ -4018,7 +4046,7 @@
       </div>
     </div>
   </div>
-  </div> <input type="file" id="import-card-input" accept=".json,.png" style="display: none;"> <input type="file" id="import-world-book-input" accept=".json" style="display: none;">
+  </div> <input type="file" id="import-card-input" accept=".json,.png" style="display: none;"> <input type="file" id="import-world-book-input" accept=".json,.txt" multiple style="display: none;">
   <div id="persona-library-modal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -5548,6 +5576,36 @@
         <div class="modal-footer">
           <button class="cancel" id="cancel-myphone-music-btn">取消</button>
           <button class="save" id="save-myphone-music-btn">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- API调用历史查看器模态窗口 -->
+    <div id="api-history-modal" class="modal">
+      <div class="modal-content" style="height: 90%; max-width: 900px;">
+        <div class="modal-header">
+          <span>API调用历史 - 提示词和返回数据</span>
+        </div>
+        <div class="modal-body" style="padding: 0; height: calc(100% - 100px); overflow: hidden; display: flex; flex-direction: column;">
+          <div style="padding: 15px; border-bottom: 1px solid var(--border-color); background: var(--bg-secondary);">
+            <div style="color: var(--text-secondary); font-size: 13px; margin-bottom: 10px;">
+              记录了每次API调用的完整请求和响应数据，包括发送的提示词、系统提示、历史消息以及AI返回的原始数据
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <button id="api-history-clear-btn" class="form-button-secondary" style="padding: 8px 15px;">
+                清空历史
+              </button>
+              <button id="api-history-export-btn" class="form-button" style="padding: 8px 15px;">
+                导出为JSON
+              </button>
+            </div>
+          </div>
+          <div id="api-history-list" style="flex: 1; overflow-y: auto; padding: 15px;">
+            <!-- API调用历史列表将动态生成 -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="cancel" id="close-api-history-btn">关闭</button>
         </div>
       </div>
     </div>
