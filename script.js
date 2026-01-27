@@ -5432,6 +5432,8 @@ function showChoiceModal(title, options) {
       systemNotification: {
         enabled: false,
         appName: 'EPhone',
+        notifyInChatPage: false,  // 在聊天页面也发送通知
+        disableInternalNotification: false,  // 禁用内部弹窗
         pushServer: {
           enabled: false,
           serverUrl: '',
@@ -6766,50 +6768,49 @@ async function saveNaiBinding() {
   }
 
   function showNotification(chatId, messageContent) {
-
-    playNotificationSound();
-
-    clearTimeout(notificationTimeout);
     const chat = state.chats[chatId];
     if (!chat) return;
 
+    // 检查是否禁用内部弹窗通知
+    const disableInternalNotification = state.globalSettings.systemNotification?.disableInternalNotification || false;
+    
+    // 如果未禁用内部弹窗，则显示内部弹窗
+    if (!disableInternalNotification) {
+      playNotificationSound();
 
-    const bar = document.getElementById('notification-bar');
+      clearTimeout(notificationTimeout);
 
+      const bar = document.getElementById('notification-bar');
 
-    document.getElementById('notification-avatar').src = chat.settings.aiAvatar || chat.settings.groupAvatar || defaultAvatar;
-    document.getElementById('notification-content').querySelector('.name').textContent = chat.name;
-    document.getElementById('notification-content').querySelector('.message').textContent = messageContent;
+      document.getElementById('notification-avatar').src = chat.settings.aiAvatar || chat.settings.groupAvatar || defaultAvatar;
+      document.getElementById('notification-content').querySelector('.name').textContent = chat.name;
+      document.getElementById('notification-content').querySelector('.message').textContent = messageContent;
 
+      bar.classList.remove('visible');
 
+      void bar.offsetWidth;
 
-    bar.classList.remove('visible');
+      bar.classList.add('visible');
 
+      const newBar = bar.cloneNode(true);
+      bar.parentNode.replaceChild(newBar, bar);
+      newBar.addEventListener('click', () => {
+        openChat(chatId);
+        newBar.classList.remove('visible');
+      });
 
-    void bar.offsetWidth;
-
-
-    bar.classList.add('visible');
-
-
-    const newBar = bar.cloneNode(true);
-    bar.parentNode.replaceChild(newBar, bar);
-    newBar.addEventListener('click', () => {
-      openChat(chatId);
-      newBar.classList.remove('visible');
-    });
-
-
-    notificationTimeout = setTimeout(() => {
-      newBar.classList.remove('visible');
-    }, 4000);
-    updateBackButtonUnreadCount();
+      notificationTimeout = setTimeout(() => {
+        newBar.classList.remove('visible');
+      }, 4000);
+      updateBackButtonUnreadCount();
+    }
     
     // 新增：触发系统级通知
     console.log('[系统通知调试] showNotification 被调用:', {
       chatId,
       messageContent,
       systemNotificationEnabled: state.globalSettings.systemNotification?.enabled,
+      disableInternalNotification: disableInternalNotification,
       notificationPermission: typeof Notification !== 'undefined' ? Notification.permission : 'N/A'
     });
     
@@ -6818,6 +6819,20 @@ async function saveNaiBinding() {
       handleSystemNotification(chatId, messageContent);
     } else {
       console.log('[系统通知调试] 系统通知未启用或配置不存在');
+    }
+  }
+
+  // 新增：在聊天页面也触发系统级通知（如果启用了相应选项）
+  function triggerSystemNotificationInChatPage(chatId, messageContent) {
+    // 检查是否启用了"在聊天页面也发送通知"选项
+    const notifyInChatPage = state.globalSettings.systemNotification?.notifyInChatPage || false;
+    
+    if (notifyInChatPage && state.globalSettings.systemNotification?.enabled) {
+      console.log('[系统通知调试] 在聊天页面触发系统级通知:', {
+        chatId,
+        messageContent
+      });
+      handleSystemNotification(chatId, messageContent);
     }
   }
 
@@ -8541,6 +8556,18 @@ Promise.all(imageLoadPromises).then(() => {
       if (book.categoryId === cat.id) option.selected = true;
       selectEl.appendChild(option);
     });
+    
+    // 设置全局开关状态（默认为关闭）
+    const globalSwitch = document.getElementById('world-book-global-switch');
+    if (globalSwitch) {
+      globalSwitch.checked = book.isGlobal === true;
+    }
+    
+    // 设置注入位置的值（默认为'before'）
+    const injectPositionSelect = document.getElementById('world-book-inject-position-select');
+    if (injectPositionSelect) {
+      injectPositionSelect.value = book.injectPosition || 'before';
+    }
 
 
     const entriesContainer = document.getElementById('world-book-entries-container');
@@ -10997,8 +11024,17 @@ const MAX_DOM_NODES = 60;
       const filteredHistory = await filterHistoryWithDoNotSendRules(historySlice, chatId);
 
       let worldBookContent = '';
-      if (chat.settings.linkedWorldBookIds && chat.settings.linkedWorldBookIds.length > 0) {
-        const linkedContents = chat.settings.linkedWorldBookIds.map(bookId => {
+      // 获取所有应该使用的世界书ID（包括手动选择的和全局的）
+      let allWorldBookIds = [...(chat.settings.linkedWorldBookIds || [])];
+      // 添加所有全局世界书
+      state.worldBooks.forEach(wb => {
+        if (wb.isGlobal && !allWorldBookIds.includes(wb.id)) {
+          allWorldBookIds.push(wb.id);
+        }
+      });
+      
+      if (allWorldBookIds.length > 0) {
+        const linkedContents = allWorldBookIds.map(bookId => {
           const worldBook = state.worldBooks.find(wb => wb.id === bookId);
           if (!worldBook || !Array.isArray(worldBook.content)) return '';
           const formattedEntries = worldBook.content
@@ -11601,8 +11637,17 @@ ${transcriptText}
       const gomokuContext = formatGomokuStateForAI(gomokuState[chatId]);
 
       let worldBookContent = '';
-      if (chat.settings.linkedWorldBookIds && chat.settings.linkedWorldBookIds.length > 0) {
-        const linkedContents = chat.settings.linkedWorldBookIds.map(bookId => {
+      // 获取所有应该使用的世界书ID（包括手动选择的和全局的）
+      let allWorldBookIds = [...(chat.settings.linkedWorldBookIds || [])];
+      // 添加所有全局世界书
+      state.worldBooks.forEach(wb => {
+        if (wb.isGlobal && !allWorldBookIds.includes(wb.id)) {
+          allWorldBookIds.push(wb.id);
+        }
+      });
+      
+      if (allWorldBookIds.length > 0) {
+        const linkedContents = allWorldBookIds.map(bookId => {
           const worldBook = state.worldBooks.find(wb => wb.id === bookId);
           if (!worldBook || !Array.isArray(worldBook.content)) return '';
 
@@ -15779,6 +15824,34 @@ case 'decline_transfer': {
             const finalNotifText = chat.isGroup ? `${aiMessage.senderName}: ${notificationText}` : notificationText;
             showNotification(chatId, finalNotifText.substring(0, 40) + (finalNotifText.length > 40 ? '...' : ''));
             notificationShown = true;
+          } else if (isViewingThisChat && !notificationShown) {
+            // 新增：如果在聊天页面且启用了"在聊天页面也发送通知"，则发送系统级通知
+            let notificationText;
+            switch (aiMessage.type) {
+              case 'transfer':
+                notificationText = `[收到一笔转账]`;
+                break;
+              case 'waimai_request':
+                notificationText = `[收到一个外卖代付请求]`;
+                break;
+              case 'ai_image':
+                notificationText = `[图片]`;
+                break;
+              case 'voice_message':
+                notificationText = `[语音]`;
+                break;
+              case 'sticker':
+                notificationText = aiMessage.meaning ? `[表情: ${aiMessage.meaning}]` : '[表情]';
+                break;
+              case 'offline_text':
+                notificationText = aiMessage.dialogue ? `「${aiMessage.dialogue}」` : `[${aiMessage.description.substring(0, 20)}...]`;
+                break;
+              default:
+                notificationText = String(aiMessage.content || '');
+            }
+            const finalNotifText = chat.isGroup ? `${aiMessage.senderName}: ${notificationText}` : notificationText;
+            triggerSystemNotificationInChatPage(chatId, finalNotifText.substring(0, 40) + (finalNotifText.length > 40 ? '...' : ''));
+            notificationShown = true;
           }
 
 
@@ -17793,8 +17866,17 @@ ${tasksString}
 
 
     let worldBookContent = '';
-    if (chat.settings.linkedWorldBookIds && chat.settings.linkedWorldBookIds.length > 0) {
-      const linkedContents = chat.settings.linkedWorldBookIds.map(bookId => {
+    // 获取所有应该使用的世界书ID（包括手动选择的和全局的）
+    let allWorldBookIds = [...(chat.settings.linkedWorldBookIds || [])];
+    // 添加所有全局世界书
+    state.worldBooks.forEach(wb => {
+      if (wb.isGlobal && !allWorldBookIds.includes(wb.id)) {
+        allWorldBookIds.push(wb.id);
+      }
+    });
+    
+    if (allWorldBookIds.length > 0) {
+      const linkedContents = allWorldBookIds.map(bookId => {
         const worldBook = state.worldBooks.find(wb => wb.id === bookId);
         if (!worldBook || !Array.isArray(worldBook.content)) return '';
 
@@ -18538,8 +18620,17 @@ ${longTimeNoSee ? `【重要提示】你们已经很久没聊天了！你【必�
 
 
       let worldBookContent = '';
-      if (chat.settings.linkedWorldBookIds && chat.settings.linkedWorldBookIds.length > 0) {
-        const linkedContents = chat.settings.linkedWorldBookIds.map(bookId => {
+      // 获取所有应该使用的世界书ID（包括手动选择的和全局的）
+      let allWorldBookIds = [...(chat.settings.linkedWorldBookIds || [])];
+      // 添加所有全局世界书
+      state.worldBooks.forEach(wb => {
+        if (wb.isGlobal && !allWorldBookIds.includes(wb.id)) {
+          allWorldBookIds.push(wb.id);
+        }
+      });
+      
+      if (allWorldBookIds.length > 0) {
+        const linkedContents = allWorldBookIds.map(bookId => {
           const worldBook = state.worldBooks.find(wb => wb.id === bookId);
           if (!worldBook || !Array.isArray(worldBook.content)) return '';
 
@@ -21234,8 +21325,17 @@ function restoreVideoCall() {
     const userNickname = chat.settings.myNickname || '我';
 
     let worldBookContent = '';
-    if (chat.settings.linkedWorldBookIds && chat.settings.linkedWorldBookIds.length > 0) {
-      const linkedContents = chat.settings.linkedWorldBookIds.map(bookId => {
+    // 获取所有应该使用的世界书ID（包括手动选择的和全局的）
+    let allWorldBookIds = [...(chat.settings.linkedWorldBookIds || [])];
+    // 添加所有全局世界书
+    state.worldBooks.forEach(wb => {
+      if (wb.isGlobal && !allWorldBookIds.includes(wb.id)) {
+        allWorldBookIds.push(wb.id);
+      }
+    });
+    
+    if (allWorldBookIds.length > 0) {
+      const linkedContents = allWorldBookIds.map(bookId => {
         const worldBook = state.worldBooks.find(wb => wb.id === bookId);
         return worldBook && worldBook.content ? `\n\n## 世界书: ${worldBook.name}\n${worldBook.content}` : '';
       }).filter(Boolean).join('');
@@ -21977,8 +22077,17 @@ async function handleUserTransferResponse(choice) {
       `\n# 你们的过往记忆 (作为情感基础)\n` + chat.longTermMemory.map(mem => `- ${mem.content}`).join('\n') :
       '';
     let worldBookContent = '';
-    if (chat.settings.linkedWorldBookIds && chat.settings.linkedWorldBookIds.length > 0) {
-      const linkedContents = chat.settings.linkedWorldBookIds.map(bookId => {
+    // 获取所有应该使用的世界书ID（包括手动选择的和全局的）
+    let allWorldBookIds = [...(chat.settings.linkedWorldBookIds || [])];
+    // 添加所有全局世界书
+    state.worldBooks.forEach(wb => {
+      if (wb.isGlobal && !allWorldBookIds.includes(wb.id)) {
+        allWorldBookIds.push(wb.id);
+      }
+    });
+    
+    if (allWorldBookIds.length > 0) {
+      const linkedContents = allWorldBookIds.map(bookId => {
         const worldBook = state.worldBooks.find(wb => wb.id === bookId);
         if (!worldBook || !Array.isArray(worldBook.content)) return '';
 
@@ -29644,8 +29753,17 @@ async function handleSilentUploadNaiImage(timestamp, buttonElement) {
 
 
       let worldBookContent = '';
-      if (chat.settings.linkedWorldBookIds && chat.settings.linkedWorldBookIds.length > 0) {
-        const linkedContents = chat.settings.linkedWorldBookIds.map(bookId => {
+      // 获取所有应该使用的世界书ID（包括手动选择的和全局的）
+      let allWorldBookIds = [...(chat.settings.linkedWorldBookIds || [])];
+      // 添加所有全局世界书
+      state.worldBooks.forEach(wb => {
+        if (wb.isGlobal && !allWorldBookIds.includes(wb.id)) {
+          allWorldBookIds.push(wb.id);
+        }
+      });
+      
+      if (allWorldBookIds.length > 0) {
+        const linkedContents = allWorldBookIds.map(bookId => {
           const worldBook = state.worldBooks.find(wb => wb.id === bookId);
           if (!worldBook || !Array.isArray(worldBook.content)) return '';
           const formattedEntries = worldBook.content
@@ -30364,6 +30482,22 @@ ${chat.settings.myPersona}
         state.globalSettings.systemNotification.sound.customSoundUrl = customSoundUrl.value.trim();
       });
     }
+    
+    // 在聊天页面也发送通知
+    const notifyInChatPageSwitch = document.getElementById('notify-in-chat-page-switch');
+    if (notifyInChatPageSwitch) {
+      notifyInChatPageSwitch.addEventListener('change', () => {
+        state.globalSettings.systemNotification.notifyInChatPage = notifyInChatPageSwitch.checked;
+      });
+    }
+    
+    // 禁用内部弹窗
+    const disableInternalNotificationSwitch = document.getElementById('disable-internal-notification-switch');
+    if (disableInternalNotificationSwitch) {
+      disableInternalNotificationSwitch.addEventListener('change', () => {
+        state.globalSettings.systemNotification.disableInternalNotification = disableInternalNotificationSwitch.checked;
+      });
+    }
   }
 
   // 加载系统通知设置到UI
@@ -30439,12 +30573,216 @@ ${chat.settings.myPersona}
       customSoundUrl.value = config.sound?.customSoundUrl || '';
     }
     
+    // 加载在聊天页面也发送通知设置
+    const notifyInChatPageSwitch = document.getElementById('notify-in-chat-page-switch');
+    if (notifyInChatPageSwitch) {
+      notifyInChatPageSwitch.checked = config.notifyInChatPage || false;
+    }
+    
+    // 加载禁用内部弹窗设置
+    const disableInternalNotificationSwitch = document.getElementById('disable-internal-notification-switch');
+    if (disableInternalNotificationSwitch) {
+      disableInternalNotificationSwitch.checked = config.disableInternalNotification || false;
+    }
+    
     updateNotificationPermissionStatus();
   }
 
   // ========== 系统级通知功能结束 ==========
 
+  // ========== 后台保活功能开始 ==========
+  
+  let keepAliveInterval = null;
+  let keepAliveAudio = null;
+  let wakeLock = null;
 
+  // 初始化后台保活
+  async function initializeBackgroundKeepAlive() {
+    if (!state.globalSettings.backgroundKeepAlive) {
+      state.globalSettings.backgroundKeepAlive = {
+        enabled: false
+      };
+    }
+  }
+
+  // 启动后台保活
+  async function startBackgroundKeepAlive() {
+    console.log('[后台保活] 启动保活机制...');
+    
+    // 1. 创建并播放静默音频（循环播放）
+    if (!keepAliveAudio) {
+      keepAliveAudio = new Audio();
+      // 使用静默的音频数据URL（1秒的静音）
+      keepAliveAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+      keepAliveAudio.loop = true;
+      keepAliveAudio.volume = 0.01; // 极低音量
+      
+      // 尝试播放
+      try {
+        await keepAliveAudio.play();
+        console.log('[后台保活] 静默音频已启动');
+      } catch (error) {
+        console.warn('[后台保活] 静默音频播放失败:', error);
+      }
+    }
+    
+    // 2. 设置定时任务（每30秒执行一次轻量级任务）
+    if (!keepAliveInterval) {
+      keepAliveInterval = setInterval(() => {
+        // 执行轻量级任务，保持JavaScript运行
+        const timestamp = Date.now();
+        console.log('[后台保活] 心跳检测:', new Date(timestamp).toLocaleTimeString());
+        
+        // 更新状态显示
+        updateKeepAliveStatus('运行中 - ' + new Date().toLocaleTimeString());
+      }, 30000); // 每30秒
+      
+      console.log('[后台保活] 定时任务已启动');
+    }
+    
+    // 3. 尝试使用 Wake Lock API（如果支持）
+    if ('wakeLock' in navigator) {
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        console.log('[后台保活] Wake Lock 已启用');
+        
+        wakeLock.addEventListener('release', () => {
+          console.log('[后台保活] Wake Lock 已释放');
+        });
+      } catch (error) {
+        console.warn('[后台保活] Wake Lock 不可用:', error);
+      }
+    }
+    
+    // 4. 监听页面可见性变化
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    updateKeepAliveStatus('运行中');
+    console.log('[后台保活] 保活机制已全部启动');
+  }
+
+  // 停止后台保活
+  function stopBackgroundKeepAlive() {
+    console.log('[后台保活] 停止保活机制...');
+    
+    // 1. 停止静默音频
+    if (keepAliveAudio) {
+      keepAliveAudio.pause();
+      keepAliveAudio = null;
+      console.log('[后台保活] 静默音频已停止');
+    }
+    
+    // 2. 清除定时任务
+    if (keepAliveInterval) {
+      clearInterval(keepAliveInterval);
+      keepAliveInterval = null;
+      console.log('[后台保活] 定时任务已清除');
+    }
+    
+    // 3. 释放 Wake Lock
+    if (wakeLock) {
+      wakeLock.release();
+      wakeLock = null;
+      console.log('[后台保活] Wake Lock 已释放');
+    }
+    
+    // 4. 移除事件监听
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    
+    updateKeepAliveStatus('未启用');
+    console.log('[后台保活] 保活机制已全部停止');
+  }
+
+  // 处理页面可见性变化
+  async function handleVisibilityChange() {
+    if (document.hidden) {
+      console.log('[后台保活] 页面进入后台');
+    } else {
+      console.log('[后台保活] 页面返回前台');
+      
+      // 页面返回前台时，重新启动音频（如果保活开启）
+      if (state.globalSettings.backgroundKeepAlive?.enabled && keepAliveAudio) {
+        try {
+          await keepAliveAudio.play();
+        } catch (error) {
+          console.warn('[后台保活] 重新播放音频失败:', error);
+        }
+      }
+      
+      // 重新申请 Wake Lock（如果支持）
+      if (state.globalSettings.backgroundKeepAlive?.enabled && 'wakeLock' in navigator && !wakeLock) {
+        try {
+          wakeLock = await navigator.wakeLock.request('screen');
+          console.log('[后台保活] Wake Lock 已重新启用');
+        } catch (error) {
+          console.warn('[后台保活] Wake Lock 重新申请失败:', error);
+        }
+      }
+    }
+  }
+
+  // 更新保活状态显示
+  function updateKeepAliveStatus(statusText) {
+    const statusElement = document.getElementById('keep-alive-status-text');
+    if (statusElement) {
+      statusElement.textContent = statusText;
+      
+      // 根据状态设置颜色
+      if (statusText.includes('运行中')) {
+        statusElement.style.color = '#4CAF50';
+      } else {
+        statusElement.style.color = '#999';
+      }
+    }
+  }
+
+  // 绑定后台保活开关事件
+  function bindBackgroundKeepAliveEvents() {
+    const keepAliveSwitch = document.getElementById('background-keep-alive-switch');
+    const statusDiv = document.getElementById('keep-alive-status');
+    
+    if (keepAliveSwitch) {
+      keepAliveSwitch.addEventListener('change', async (e) => {
+        const enabled = e.target.checked;
+        state.globalSettings.backgroundKeepAlive.enabled = enabled;
+        
+        // 显示/隐藏状态
+        if (statusDiv) {
+          statusDiv.style.display = enabled ? 'flex' : 'none';
+        }
+        
+        if (enabled) {
+          await startBackgroundKeepAlive();
+        } else {
+          stopBackgroundKeepAlive();
+        }
+      });
+    }
+  }
+
+  // 加载后台保活设置到UI
+  function loadBackgroundKeepAliveSettings() {
+    const config = state.globalSettings.backgroundKeepAlive;
+    if (!config) return;
+    
+    const keepAliveSwitch = document.getElementById('background-keep-alive-switch');
+    const statusDiv = document.getElementById('keep-alive-status');
+    
+    if (keepAliveSwitch) {
+      keepAliveSwitch.checked = config.enabled || false;
+      
+      if (statusDiv) {
+        statusDiv.style.display = config.enabled ? 'flex' : 'none';
+      }
+      
+      // 如果之前是开启状态，重新启动保活
+      if (config.enabled) {
+        startBackgroundKeepAlive();
+      }
+    }
+  }
+
+  // ========== 后台保活功能结束 ==========
 
 
   function applyWidgetData() {
@@ -33996,7 +34334,15 @@ window.editBubbleText = async function(elementId) {
     const recentHistory_RAW = chat.history.slice(-maxMemory);
     const filteredHistory = await filterHistoryWithDoNotSendRules(recentHistory_RAW, activeCharacterId);
     const recentHistoryWithUser = filteredHistory.map(msg => `${msg.role === 'user' ? userDisplayNameForAI : chat.name}: ${String(msg.content).substring(0, 30)}...`).join('\n');
-    const worldBookContext = (chat.settings.linkedWorldBookIds || [])
+    // 获取所有应该使用的世界书ID（包括手动选择的和全局的）
+    let allWorldBookIds = [...(chat.settings.linkedWorldBookIds || [])];
+    // 添加所有全局世界书
+    state.worldBooks.forEach(wb => {
+      if (wb.isGlobal && !allWorldBookIds.includes(wb.id)) {
+        allWorldBookIds.push(wb.id);
+      }
+    });
+    const worldBookContext = allWorldBookIds
       .map(bookId => state.worldBooks.find(wb => wb.id === bookId))
       .filter(Boolean)
       .map(book => `\n## 世界书《${book.name}》设定:\n${book.content.filter(e=>e.enabled).map(e => `- ${e.content}`).join('\n')}`)
@@ -34587,7 +34933,15 @@ ${recentHistoryWithUser}
     const recentHistoryWithUser_RAW = chat.history.slice(-maxMemory);
     const filteredHistory = await filterHistoryWithDoNotSendRules(recentHistoryWithUser_RAW, activeCharacterId);
     const recentHistoryWithUser = filteredHistory.map(msg => `${msg.role === 'user' ? userNicknameInThisChat : chat.name}: ${String(msg.content).substring(0, 30)}...`).join('\n');
-    const worldBookContext = (chat.settings.linkedWorldBookIds || [])
+    // 获取所有应该使用的世界书ID（包括手动选择的和全局的）
+    let allWorldBookIds = [...(chat.settings.linkedWorldBookIds || [])];
+    // 添加所有全局世界书
+    state.worldBooks.forEach(wb => {
+      if (wb.isGlobal && !allWorldBookIds.includes(wb.id)) {
+        allWorldBookIds.push(wb.id);
+      }
+    });
+    const worldBookContext = allWorldBookIds
       .map(bookId => state.worldBooks.find(wb => wb.id === bookId))
       .filter(Boolean)
       .map(book => `\n## 世界书《${book.name}》设定 (你可以将其中角色作为聊天对象):\n${book.content.filter(e=>e.enabled).map(e => `- ${e.content}`).join('\n')}`)
@@ -34761,8 +35115,17 @@ ${stickerContext}
 
 
       let worldBookContext = '';
-      if (chat.settings.linkedWorldBookIds && chat.settings.linkedWorldBookIds.length > 0) {
-        const linkedContents = chat.settings.linkedWorldBookIds.map(bookId => {
+      // 获取所有应该使用的世界书ID（包括手动选择的和全局的）
+      let allWorldBookIds = [...(chat.settings.linkedWorldBookIds || [])];
+      // 添加所有全局世界书
+      state.worldBooks.forEach(wb => {
+        if (wb.isGlobal && !allWorldBookIds.includes(wb.id)) {
+          allWorldBookIds.push(wb.id);
+        }
+      });
+      
+      if (allWorldBookIds.length > 0) {
+        const linkedContents = allWorldBookIds.map(bookId => {
           const worldBook = state.worldBooks.find(wb => wb.id === bookId);
           if (!worldBook || !Array.isArray(worldBook.content)) return '';
           const formattedEntries = worldBook.content
@@ -35260,7 +35623,15 @@ ${historySlice.map(msg => `${msg.role === 'user' ? myNickname : chat.name}: ${St
     const recentHistory_RAW = chat.history.slice(-maxMemory);
     const filteredHistory = await filterHistoryWithDoNotSendRules(recentHistory_RAW, activeCharacterId);
     const recentHistoryWithUser = filteredHistory.map(msg => `${msg.role === 'user' ? userDisplayNameForAI : chat.name}: ${String(msg.content).substring(0, 30)}...`).join('\n');
-    const worldBookContext = (chat.settings.linkedWorldBookIds || [])
+    // 获取所有应该使用的世界书ID（包括手动选择的和全局的）
+    let allWorldBookIds = [...(chat.settings.linkedWorldBookIds || [])];
+    // 添加所有全局世界书
+    state.worldBooks.forEach(wb => {
+      if (wb.isGlobal && !allWorldBookIds.includes(wb.id)) {
+        allWorldBookIds.push(wb.id);
+      }
+    });
+    const worldBookContext = allWorldBookIds
       .map(bookId => state.worldBooks.find(wb => wb.id === bookId))
       .filter(Boolean)
       .map(book => `\n## 世界书《${book.name}》设定:\n${book.content.filter(e=>e.enabled).map(e => `- ${e.content}`).join('\n')}`)
@@ -38002,6 +38373,13 @@ function updateCharActiveLyric(currentTime) {
       const c = state.chats[charId];
       if (c && c.settings.linkedWorldBookIds) {
         c.settings.linkedWorldBookIds.forEach(bookId => allLinkedBookIds.add(bookId));
+      }
+    });
+    
+    // 添加所有全局世界书
+    state.worldBooks.forEach(wb => {
+      if (wb.isGlobal) {
+        allLinkedBookIds.add(wb.id);
       }
     });
 
@@ -44178,8 +44556,17 @@ async function playTtsAudio(bodyElement) {
     ).join('\n');
 
     let worldBookContext = '';
-    if (chat.settings.linkedWorldBookIds && chat.settings.linkedWorldBookIds.length > 0) {
-      const linkedContents = chat.settings.linkedWorldBookIds.map(bookId => {
+    // 获取所有应该使用的世界书ID（包括手动选择的和全局的）
+    let allWorldBookIds = [...(chat.settings.linkedWorldBookIds || [])];
+    // 添加所有全局世界书
+    state.worldBooks.forEach(wb => {
+      if (wb.isGlobal && !allWorldBookIds.includes(wb.id)) {
+        allWorldBookIds.push(wb.id);
+      }
+    });
+    
+    if (allWorldBookIds.length > 0) {
+      const linkedContents = allWorldBookIds.map(bookId => {
         const worldBook = state.worldBooks.find(wb => wb.id === bookId);
         if (!worldBook || !Array.isArray(worldBook.content)) return '';
         const enabledEntries = worldBook.content
@@ -44881,8 +45268,12 @@ ${stickerList}
 
 
     const linkedBookIds = Array.from(document.querySelectorAll('#world-book-checkboxes-container input:checked')).map(cb => cb.value.replace('book_', ''));
-    if (linkedBookIds.length > 0) {
-      const linkedContents = linkedBookIds.map(bookId => {
+    // 添加所有全局世界书
+    const globalBookIds = state.worldBooks.filter(wb => wb.isGlobal).map(wb => wb.id);
+    const allBookIds = [...new Set([...linkedBookIds, ...globalBookIds])];
+    
+    if (allBookIds.length > 0) {
+      const linkedContents = allBookIds.map(bookId => {
         const worldBook = state.worldBooks.find(wb => wb.id === bookId);
         if (!worldBook || !Array.isArray(worldBook.content)) return '';
         return worldBook.content.filter(e => e.enabled !== false).map(e => e.content).join('\n');
@@ -54567,7 +54958,9 @@ ${recentHistoryWithUser}
         const newBook = {
           id: 'wb_' + Date.now(),
           name: name.trim(),
-          content: ''
+          content: '',
+          isGlobal: false,
+          injectPosition: 'before' // 默认为前
         };
         await db.worldBooks.add(newBook);
         state.worldBooks.push(newBook);
@@ -54590,6 +54983,14 @@ ${recentHistoryWithUser}
       book.name = newName;
       const categoryId = document.getElementById('world-book-category-select').value;
       book.categoryId = categoryId ? parseInt(categoryId) : null;
+      
+      // 保存全局开关状态
+      const isGlobal = document.getElementById('world-book-global-switch').checked;
+      book.isGlobal = isGlobal;
+      
+      // 保存注入位置（无论是否全局都保存）
+      const injectPosition = document.getElementById('world-book-inject-position-select').value;
+      book.injectPosition = injectPosition;
 
       const entriesContainer = document.getElementById('world-book-entries-container');
       const entryBlocks = entriesContainer.querySelectorAll('.message-editor-block');
@@ -54621,7 +55022,6 @@ ${recentHistoryWithUser}
 
       await renderWorldBookScreen();
     });
-
 
     document.getElementById('chat-messages').addEventListener('click', async (e) => {
              if (e.target.tagName === 'IMG') {
@@ -55229,10 +55629,11 @@ if (isGroup) {
             worldBookCheckboxesContainer.appendChild(categoryHeader);
 
             booksInCategory.forEach(book => {
-              const isChecked = linkedBookIds.has(book.id);
+              // 全局世界书自动勾选
+              const isChecked = linkedBookIds.has(book.id) || book.isGlobal === true;
               const label = document.createElement('label');
-
-              label.innerHTML = `<input type="checkbox" value="book_${book.id}" ${isChecked ? 'checked' : ''}> ${book.name}`;
+              const globalTag = book.isGlobal ? ' <span style="color: #ff5722; font-size: 12px;">[全局]</span>' : '';
+              label.innerHTML = `<input type="checkbox" value="book_${book.id}" ${isChecked ? 'checked' : ''}> ${book.name}${globalTag}`;
               worldBookCheckboxesContainer.appendChild(label);
             });
           }
@@ -55247,9 +55648,11 @@ if (isGroup) {
           worldBookCheckboxesContainer.appendChild(bookHeader);
 
           uncategorizedBooks.forEach(book => {
-            const isChecked = linkedBookIds.has(book.id);
+            // 全局世界书自动勾选
+            const isChecked = linkedBookIds.has(book.id) || book.isGlobal === true;
             const label = document.createElement('label');
-            label.innerHTML = `<input type="checkbox" value="book_${book.id}" ${isChecked ? 'checked' : ''}> ${book.name}`;
+            const globalTag = book.isGlobal ? ' <span style="color: #ff5722; font-size: 12px;">[全局]</span>' : '';
+            label.innerHTML = `<input type="checkbox" value="book_${book.id}" ${isChecked ? 'checked' : ''}> ${book.name}${globalTag}`;
             worldBookCheckboxesContainer.appendChild(label);
           });
         }
@@ -55901,27 +56304,50 @@ if (isGroup) {
       document.getElementById('api-history-modal').classList.remove('visible');
     });
     
-    // 清空API历史
-    document.getElementById('api-history-clear-btn').addEventListener('click', async () => {
+    // 全选/取消全选API历史
+    document.getElementById('api-history-select-all').addEventListener('change', (e) => {
+      const checkboxes = document.querySelectorAll('.api-history-checkbox');
+      checkboxes.forEach(cb => cb.checked = e.target.checked);
+    });
+    
+    // 删除选中的API历史
+    document.getElementById('api-history-delete-btn').addEventListener('click', async () => {
       if (!state.activeChatId) return;
       const chat = state.chats[state.activeChatId];
       
+      // 获取所有选中的复选框
+      const checkedBoxes = document.querySelectorAll('.api-history-checkbox:checked');
+      
+      if (checkedBoxes.length === 0) {
+        await showCustomAlert('提示', '请先选择要删除的记录！');
+        return;
+      }
+      
       const confirmed = await showCustomConfirm(
-        '清空API历史',
-        '确定要清空所有API调用历史记录吗？\n\n此操作无法撤销！',
+        '删除API历史',
+        `确定要删除选中的 ${checkedBoxes.length} 条API调用历史记录吗？\n\n此操作无法撤销！`,
         { confirmButtonClass: 'btn-danger' }
       );
       
       if (!confirmed) return;
       
       try {
-        chat.apiHistory = [];
+        // 获取要删除的索引列表
+        const indicesToDelete = Array.from(checkedBoxes).map(cb => parseInt(cb.dataset.index));
+        
+        // 创建新数组，排除要删除的记录
+        chat.apiHistory = chat.apiHistory.filter((record, index) => !indicesToDelete.includes(index));
+        
         await db.chats.put(chat);
+        
+        // 取消全选
+        document.getElementById('api-history-select-all').checked = false;
+        
         renderApiHistoryList();
-        await showCustomAlert('清空成功', 'API调用历史已清空！');
+        await showCustomAlert('删除成功', `已删除 ${checkedBoxes.length} 条API调用历史记录！`);
       } catch (error) {
-        console.error('清空API历史失败:', error);
-        await showCustomAlert('清空失败', '清空API历史时出错，请重试。');
+        console.error('删除API历史失败:', error);
+        await showCustomAlert('删除失败', '删除API历史时出错，请重试。');
       }
     });
     
@@ -55989,8 +56415,11 @@ if (isGroup) {
             background: var(--bg-primary);
           ">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-              <div style="font-weight: 600; font-size: 14px;">
-                #${reversedIndex} - ${dateStr}
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <input type="checkbox" class="api-history-checkbox" data-index="${chat.apiHistory.length - 1 - index}" style="cursor: pointer; width: 18px; height: 18px;">
+                <div style="font-weight: 600; font-size: 14px;">
+                  #${reversedIndex} - ${dateStr}
+                </div>
               </div>
               <div style="font-size: 12px; color: var(--text-secondary);">
                 耗时: ${duration}
@@ -56065,6 +56494,21 @@ if (isGroup) {
           showApiHistoryDetail('原始响应数据', JSON.stringify(record.responseData, null, 2), 'json');
         });
       });
+      
+      // 监听单个复选框变化，更新全选复选框状态
+      const selectAllCheckbox = document.getElementById('api-history-select-all');
+      listContainer.querySelectorAll('.api-history-checkbox').forEach(cb => {
+        cb.addEventListener('change', () => {
+          const allCheckboxes = document.querySelectorAll('.api-history-checkbox');
+          const checkedCount = document.querySelectorAll('.api-history-checkbox:checked').length;
+          selectAllCheckbox.checked = checkedCount === allCheckboxes.length;
+        });
+      });
+      
+      // 重置全选复选框状态
+      if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+      }
     }
     
     // 显示API历史详情
@@ -61830,6 +62274,9 @@ if (deleteQuickRepliesBtn) {
     checkForUpdates();
     updateLockedFeatureUI();
     initSystemNotification();
+    initializeBackgroundKeepAlive();
+    bindBackgroundKeepAliveEvents();
+    loadBackgroundKeepAliveSettings();
     showScreen('home-screen');
   }
 
