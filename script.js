@@ -2740,6 +2740,21 @@ let selectedQuickReplies = new Set();
     'ephone': 'https://i.postimg.cc/pXj9h20L/IMG-7275.jpg'
   };
 
+  const DEFAULT_MYPHONE_ICONS = {
+    'qq': 'https://i.postimg.cc/MTC3Tkw8/IMG-6436.jpg',
+    'album': 'https://i.postimg.cc/HWf1JKzn/IMG-6435.jpg',
+    'browser': 'https://i.postimg.cc/KzC2gTq6/IMG-7276.jpg',
+    'taobao': 'https://i.postimg.cc/L6R7x16R/IMG-7278.jpg',
+    'memo': 'https://i.postimg.cc/J0b6Nym4/IMG-7279.jpg',
+    'diary': 'https://i.postimg.cc/DZ541sbt/IMG-7280.jpg',
+    'amap': 'https://i.postimg.cc/Jz2Tz0dw/IMG-7281.jpg',
+    'usage': 'https://i.postimg.cc/WbF8kzz9/IMG-7282.jpg',
+    'music': 'https://is1-ssl.mzstatic.com/image/thumb/Purple112/v4/64/9d/21/649d21e8-a151-6136-3914-256e54f15d9a/AppIcon-0-0-1x_U007emarketing-0-0-0-7-0-0-sRGB-0-0-0-GLES2_U002c0-512MB-85-220-0-0.png/1200x630wa.png',
+    'bilibili': 'https://i.postimg.cc/Wz5gV0jB/bilibili-icon.png',
+    'reddit': 'https://www.redditinc.com/assets/images/site/reddit-logo.png',
+    'cphone': 'https://i.postimg.cc/pXj9h20L/IMG-7275.jpg'
+  };
+
   let repostTargetId = null;
   const STICKER_REGEX = /(^https:\/\/i\.postimg\.cc\/.+|^https:\/\/files\.catbox\.moe\/.+|^https?:\/\/sharkpan\.xyz\/.+|^data:image|\.(png|jpg|jpeg|gif|webp)\?.*$|\.(png|jpg|jpeg|gif|webp)$)/i;
 
@@ -5413,6 +5428,9 @@ function showChoiceModal(title, options) {
       cphoneAppIcons: {
         ...DEFAULT_CPHONE_ICONS
       },
+      myphoneAppIcons: {
+        ...DEFAULT_MYPHONE_ICONS
+      },
       globalCss: '',
       notificationSoundUrl: '',
       widgetData: {},
@@ -5489,6 +5507,10 @@ function showChoiceModal(title, options) {
     state.globalSettings.cphoneAppIcons = {
       ...defaultGlobalSettings.cphoneAppIcons,
       ...(state.globalSettings.cphoneAppIcons || {})
+    };
+    state.globalSettings.myphoneAppIcons = {
+      ...defaultGlobalSettings.myphoneAppIcons,
+      ...(state.globalSettings.myphoneAppIcons || {})
     };
 
     chatsArr.forEach(chat => {
@@ -8294,6 +8316,7 @@ Promise.all(imageLoadPromises).then(() => {
 
     renderIconSettings();
     renderCPhoneIconSettings();
+    renderMyPhoneIconSettings();
     document.getElementById('global-css-input').value = state.globalSettings.globalCss || '';
     document.getElementById('notification-sound-url-input').value = state.globalSettings.notificationSoundUrl || '';
     document.getElementById('status-bar-toggle-switch').checked = state.globalSettings.showStatusBar || false;
@@ -23443,6 +23466,17 @@ async function handlePacketClick(timestamp) {
     }
   }
 
+  function applyMyPhoneAppIconsGlobal() {
+    if (!state.globalSettings.myphoneAppIcons) return;
+
+    for (const iconId in state.globalSettings.myphoneAppIcons) {
+      const imgElement = document.getElementById(`myphone-icon-img-${iconId}`);
+      if (imgElement) {
+        imgElement.src = state.globalSettings.myphoneAppIcons[iconId];
+      }
+    }
+  }
+
   
   function renderCPhoneIconSettings() {
     const grid = document.getElementById('cphone-icon-settings-grid');
@@ -23467,6 +23501,42 @@ async function handlePacketClick(timestamp) {
     for (const iconId in state.globalSettings.cphoneAppIcons) {
       const iconUrl = state.globalSettings.cphoneAppIcons[iconId];
       const labelText = cphoneAppLabels[iconId] || '未知App';
+
+      const item = document.createElement('div');
+      item.className = 'icon-setting-item';
+      item.dataset.iconId = iconId;
+
+      item.innerHTML = `
+                    <img class="icon-preview" src="${iconUrl}" alt="${labelText}">
+                    <button class="change-icon-btn">更换</button>
+                `;
+      grid.appendChild(item);
+    }
+  }
+
+  function renderMyPhoneIconSettings() {
+    const grid = document.getElementById('myphone-icon-settings-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    const myphoneAppLabels = {
+      'qq': 'QQ',
+      'album': '相册',
+      'browser': '浏览器',
+      'taobao': '淘宝',
+      'memo': '备忘录',
+      'diary': '日记',
+      'amap': '高德地图',
+      'usage': 'App记录',
+      'music': '网易云',
+      'bilibili': '哔哩哔哩',
+      'reddit': 'Reddit',
+      'cphone': 'Cphone'
+    };
+
+    for (const iconId in state.globalSettings.myphoneAppIcons) {
+      const iconUrl = state.globalSettings.myphoneAppIcons[iconId];
+      const labelText = myphoneAppLabels[iconId] || '未知App';
 
       const item = document.createElement('div');
       item.className = 'icon-setting-item';
@@ -32397,6 +32467,7 @@ window.toggleReadingFullscreen = toggleReadingFullscreen;
       globalChatBackground: state.globalSettings.globalChatBackground,
       appIcons: state.globalSettings.appIcons,
       cphoneAppIcons: state.globalSettings.cphoneAppIcons,
+      myphoneAppIcons: state.globalSettings.myphoneAppIcons,
       chatActionButtonsOrder: state.globalSettings.chatActionButtonsOrder,
       theme: localStorage.getItem('ephone-theme') || 'light',
       showStatusBar: state.globalSettings.showStatusBar,
@@ -32441,10 +32512,15 @@ window.toggleReadingFullscreen = toggleReadingFullscreen;
         ...DEFAULT_CPHONE_ICONS,       
         ...(data.cphoneAppIcons || {}) 
       };
+      const mergedMyPhoneIcons = {
+        ...DEFAULT_MYPHONE_ICONS,
+        ...(data.myphoneAppIcons || {})
+      };
 
       Object.assign(state.globalSettings, data);
       state.globalSettings.appIcons = mergedAppIcons;
       state.globalSettings.cphoneAppIcons = mergedCPhoneIcons;
+      state.globalSettings.myphoneAppIcons = mergedMyPhoneIcons;
 
       applyTheme(data.theme || 'light');
       await db.globalSettings.put(state.globalSettings);
@@ -32452,9 +32528,11 @@ window.toggleReadingFullscreen = toggleReadingFullscreen;
       applyGlobalWallpaper();
       applyCPhoneWallpaper();
       renderIconSettings();       
-      renderCPhoneIconSettings(); 
+      renderCPhoneIconSettings();
+      renderMyPhoneIconSettings();
       applyAppIcons();
       applyCPhoneAppIcons();
+      applyMyPhoneAppIconsGlobal();
       applyStatusBarVisibility();
       applyWidgetData();
       
@@ -32483,6 +32561,7 @@ window.toggleReadingFullscreen = toggleReadingFullscreen;
       globalChatBackground: state.globalSettings.globalChatBackground,
       appIcons: state.globalSettings.appIcons,
       cphoneAppIcons: state.globalSettings.cphoneAppIcons,
+      myphoneAppIcons: state.globalSettings.myphoneAppIcons,
       chatActionButtonsOrder: state.globalSettings.chatActionButtonsOrder,
       theme: localStorage.getItem('ephone-theme') || 'light',
       showStatusBar: state.globalSettings.showStatusBar,
@@ -34035,18 +34114,14 @@ window.toggleReadingFullscreen = toggleReadingFullscreen;
   }
 
   function applyMyPhoneAppIcons() {
-    if (!activeMyPhoneCharacterId) return;
-    const char = state.chats[activeMyPhoneCharacterId];
-    if (!char) return;
+    if (!state.globalSettings.myphoneAppIcons) return;
 
-    const iconMapping = char.settings.cphoneAppIcons || {};
-    
-    Object.keys(iconMapping).forEach(appName => {
-      const imgEl = document.getElementById(`myphone-icon-img-${appName}`);
-      if (imgEl && iconMapping[appName]) {
-        imgEl.src = iconMapping[appName];
+    for (const iconId in state.globalSettings.myphoneAppIcons) {
+      const imgElement = document.getElementById(`myphone-icon-img-${iconId}`);
+      if (imgElement) {
+        imgElement.src = state.globalSettings.myphoneAppIcons[iconId];
       }
-    });
+    }
   }
 
   async function openMyPhoneApp(appName) {
@@ -39402,6 +39477,7 @@ ${charactersContext}
                 applyCPhoneWallpaper();
                 applyAppIcons();
                 applyCPhoneAppIcons();
+                applyMyPhoneAppIconsGlobal();
                 applyGlobalCss(state.globalSettings.globalCss);
                 applyCustomFont(state.globalSettings.fontUrl);
                 applyStatusBarVisibility();
@@ -39493,6 +39569,7 @@ async function exportAppearanceSettings() {
             globalChatBackground: state.globalSettings.globalChatBackground,
             appIcons: state.globalSettings.appIcons,
             cphoneAppIcons: state.globalSettings.cphoneAppIcons,
+            myphoneAppIcons: state.globalSettings.myphoneAppIcons,
             widgetData: state.globalSettings.widgetData,
             lockScreenWallpaper: state.globalSettings.lockScreenWallpaper,
             notificationSoundUrl: state.globalSettings.notificationSoundUrl
@@ -41040,9 +41117,14 @@ async function exportAppearanceSettings() {
         if (newUrl) isBase64 = true;
         
     } else if (choice === 'url') {
-        const currentUrl = (phoneType === 'cphone') ?
-            state.globalSettings.cphoneAppIcons[iconId] :
-            state.globalSettings.appIcons[iconId];
+        let currentUrl;
+        if (phoneType === 'cphone') {
+            currentUrl = state.globalSettings.cphoneAppIcons[iconId];
+        } else if (phoneType === 'myphone') {
+            currentUrl = state.globalSettings.myphoneAppIcons[iconId];
+        } else {
+            currentUrl = state.globalSettings.appIcons[iconId];
+        }
         const isCurrentUrlBase64 = currentUrl && currentUrl.startsWith('data:image'); 
         
         const initialValueForPrompt = isCurrentUrlBase64 ? '' : currentUrl;
@@ -41060,10 +41142,15 @@ async function exportAppearanceSettings() {
         itemElement.querySelector('.icon-preview').src = trimmedUrl;
 
        
-        const dbPath = (phoneType === 'cphone') ? `cphoneAppIcons.${iconId}` : `appIcons.${iconId}`;
+        let dbPath;
         if (phoneType === 'cphone') {
+            dbPath = `cphoneAppIcons.${iconId}`;
             state.globalSettings.cphoneAppIcons[iconId] = trimmedUrl;
+        } else if (phoneType === 'myphone') {
+            dbPath = `myphoneAppIcons.${iconId}`;
+            state.globalSettings.myphoneAppIcons[iconId] = trimmedUrl;
         } else {
+            dbPath = `appIcons.${iconId}`;
             state.globalSettings.appIcons[iconId] = trimmedUrl;
         }
         await db.globalSettings.put(state.globalSettings);
@@ -41190,7 +41277,7 @@ async function exportAppearanceSettings() {
       
             (parentKey === 'settings' && key === 'background') ||
        
-            (parentKey === 'appIcons' || parentKey === 'cphoneAppIcons');
+            (parentKey === 'appIcons' || parentKey === 'cphoneAppIcons' || parentKey === 'myphoneAppIcons');
 
           if (!isExcluded) {
             totalSize += value.length;
@@ -41280,7 +41367,7 @@ function calculateSkippedStats(obj) {
         if (obj.hasOwnProperty(key)) {
             
           
-            if (parentKey === '' && (key === 'widgetData' || key === 'appIcons' || key === 'cphoneAppIcons')) {
+            if (parentKey === '' && (key === 'widgetData' || key === 'appIcons' || key === 'cphoneAppIcons' || key === 'myphoneAppIcons')) {
                 console.log(`跳过压缩整个对象: ${key}`);
                 const {
                     found,
@@ -53787,6 +53874,7 @@ async function handleEmergencyAppearanceReset() {
         // 恢复默认图标对象
         const defaultAppIcons = { ...DEFAULT_APP_ICONS };
         const defaultCPhoneIcons = { ...DEFAULT_CPHONE_ICONS };
+        const defaultMyPhoneIcons = { ...DEFAULT_MYPHONE_ICONS };
 
         state.globalSettings.wallpaper = 'linear-gradient(135deg, #89f7fe, #66a6ff)';
         state.globalSettings.cphoneWallpaper = 'linear-gradient(135deg, #f6d365, #fda085)';
@@ -53796,6 +53884,7 @@ async function handleEmergencyAppearanceReset() {
         state.globalSettings.theme = 'light'; // 恢复亮色模式
         state.globalSettings.appIcons = defaultAppIcons;
         state.globalSettings.cphoneAppIcons = defaultCPhoneIcons;
+        state.globalSettings.myphoneAppIcons = defaultMyPhoneIcons;
         
         // 恢复交互开关
         state.globalSettings.showStatusBar = false;
@@ -53822,6 +53911,7 @@ async function handleEmergencyAppearanceReset() {
         
         applyAppIcons();
         applyCPhoneAppIcons();
+        applyMyPhoneAppIconsGlobal();
         
         applyStatusBarVisibility();
         applyPhoneFrame(false);
@@ -55581,6 +55671,7 @@ ${recentHistoryWithUser}
 
       applyAppIcons();
       applyCPhoneAppIcons();
+      applyMyPhoneAppIconsGlobal();
 
       applyGlobalCss(state.globalSettings.globalCss);
       applyStatusBarVisibility();
@@ -60937,6 +61028,8 @@ if (isGroup) {
       applyGlobalWallpaper();
       newWallpaperBase64 = null;
       applyAppIcons();
+      applyCPhoneAppIcons();
+      applyMyPhoneAppIconsGlobal();
       applyGlobalCss(state.globalSettings.globalCss);
       applyStatusBarVisibility();
       initLockScreen();
@@ -61666,6 +61759,16 @@ if (isGroup) {
         const iconId = item.dataset.iconId;
         if (iconId) {
           handleIconChange(iconId, 'cphone', item);
+        }
+      }
+    });
+
+    document.getElementById('myphone-icon-settings-grid').addEventListener('click', (e) => {
+      if (e.target.classList.contains('change-icon-btn')) {
+        const item = e.target.closest('.icon-setting-item');
+        const iconId = item.dataset.iconId;
+        if (iconId) {
+          handleIconChange(iconId, 'myphone', item);
         }
       }
     });
