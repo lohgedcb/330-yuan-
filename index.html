@@ -3357,11 +3357,18 @@
                     <option value="vi-VN">🇻🇳 越南语 (Vietnamese)</option>
                     <option value="th-TH">🇹🇭 泰语 (Thai)</option>
                     <option value="hi-IN">🇮🇳 印地语 (Hindi)</option>
-                    <option value="ar-SA">🇸🇦 阿拉伯语 (Arabic)</option>
-                  </select>
-                </div>
-             </div>
-  <div class="settings-item" id="synth-music-group">
+                   <option value="ar-SA">🇸🇦 阿拉伯语 (Arabic)</option>
+                 </select>
+               </div>
+            </div>
+            <div class="settings-item" id="ai-voice-speed-group">
+               <label>语音速度</label>
+               <div class="settings-right">
+                 <input type="number" id="ai-voice-speed-input" min="0.5" max="2.0" step="0.1" value="1.0" style="width: 80px; text-align: right; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--secondary-bg); color: var(--text-color);">
+                 <span style="margin-left: 5px; color: var(--text-secondary); font-size: 12px;">x</span>
+               </div>
+            </div>
+ <div class="settings-item" id="synth-music-group">
     <div>
         <label>启用乐谱合成</label>
         <div class="settings-desc">允许角色发送乐谱并自动演奏</div>
@@ -4115,7 +4122,7 @@
       </div>
     </div>
   </div>
-  </div> <input type="file" id="import-card-input" accept=".json,.png" style="display: none;"> <input type="file" id="import-world-book-input" accept=".json,.txt" multiple style="display: none;">
+  </div> <input type="file" id="import-card-input" accept=".json,.png" multiple style="display: none;"> <input type="file" id="import-world-book-input" accept=".json,.txt" multiple style="display: none;">
   <div id="persona-library-modal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -4140,6 +4147,53 @@
     </div>
   </div>
   <input type="file" id="import-tavern-persona-input" accept=".json" style="display: none;">
+  
+  <!-- 人设操作选择弹窗 -->
+  <div id="persona-action-modal" class="modal">
+    <div class="modal-content" style="width: 350px; height: auto;">
+      <div class="modal-header">
+        <span id="persona-action-title">人设操作</span>
+      </div>
+      <div class="modal-body" style="padding: 20px;">
+        <button class="form-button" id="apply-persona-direct-btn" style="width: 100%; margin-bottom: 15px; padding: 15px; font-size: 16px; background: #007AFF; color: white; border: none;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 8px;">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          直接应用
+        </button>
+        <button class="form-button" id="edit-persona-first-btn" style="width: 100%; padding: 15px; font-size: 16px; background: #f0f0f0; color: #333; border: none;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 8px;">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+          编辑后应用
+        </button>
+      </div>
+      <div class="modal-footer">
+        <button class="cancel" id="cancel-persona-action-btn">取消</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 批量导入角色卡预览模态框 -->
+  <div id="batch-import-preview-modal" class="modal">
+    <div class="modal-content" style="height: 80%; max-width: 900px;">
+      <div class="modal-header">
+        <span>批量导入角色卡预览</span>
+        <label style="font-size: 14px; font-weight: normal; display: flex; align-items: center; gap: 5px;">
+          <input type="checkbox" id="select-all-import-cards" checked> 全选
+        </label>
+      </div>
+      <div class="modal-body" id="batch-import-preview-list" style="padding: 0; overflow-y: auto;">
+        <!-- 角色卡预览列表将在这里动态生成 -->
+      </div>
+      <div class="modal-footer">
+        <button class="cancel" id="cancel-batch-import-btn">取消</button>
+        <button class="save" id="confirm-batch-import-btn">确认导入</button>
+      </div>
+    </div>
+  </div>
+  
   <div id="tavern-persona-selector-modal" class="modal">
     <div class="modal-content" style="height: 70%;">
       <div class="modal-header">
@@ -5268,6 +5322,63 @@
              <div class="gr-form-group">
                 <label>上下文引用条数 (History)</label>
                 <input type="number" id="gr-context-limit" class="gr-input" value="20">
+            </div>
+
+            <!-- 作者追更功能 -->
+            <div class="gr-form-group" style="border-top: 2px solid #E5E5E5; padding-top: 15px; margin-top: 15px;">
+                <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+                    <span style="font-size: 16px; font-weight: 600; color: #1B4F3E;">
+                        📖 作者追更功能
+                        <span style="font-size: 12px; color: #999; font-weight: normal; display: block; margin-top: 5px;">
+                            开启后，可定时使用指定作者文风或角色视角自动更新章节
+                        </span>
+                    </span>
+                    <input type="checkbox" id="gr-auto-update-enabled" style="width: 44px; height: 24px; cursor: pointer;">
+                </label>
+            </div>
+
+            <div id="gr-auto-update-settings" style="display: none;">
+                <div class="gr-form-group">
+                    <label>追更方式</label>
+                    <select id="gr-auto-update-type" class="gr-select">
+                        <option value="author">使用作者文风</option>
+                        <option value="character">使用角色视角</option>
+                    </select>
+                </div>
+
+                <div class="gr-form-group" id="gr-update-author-select-group">
+                    <label>选择作者</label>
+                    <select id="gr-update-author-select" class="gr-select"></select>
+                </div>
+
+                <div class="gr-form-group" id="gr-update-character-select-group" style="display: none;">
+                    <label>选择角色</label>
+                    <select id="gr-update-character-select" class="gr-select"></select>
+                </div>
+
+                <div class="gr-form-group">
+                    <label>更新频率</label>
+                    <select id="gr-update-frequency" class="gr-select">
+                        <option value="manual">手动更新（不自动）</option>
+                        <option value="daily">每天一更</option>
+                        <option value="weekly">每周一更</option>
+                        <option value="custom">自定义间隔</option>
+                    </select>
+                </div>
+
+                <div class="gr-form-group" id="gr-custom-frequency-group" style="display: none;">
+                    <label>自定义更新间隔（小时）</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="number" id="gr-custom-frequency-hours" class="gr-input" value="24" min="1" max="168" style="flex: 1;">
+                        <span style="font-size: 13px; color: #888;">小时</span>
+                    </div>
+                </div>
+
+                <div class="gr-form-group">
+                    <label style="font-size: 12px; color: #666;">
+                        💡 提示：启用追更后，系统将按照设定的频率自动生成新章节。每次更新都会使用选择的作者文风或角色视角。
+                    </label>
+                </div>
             </div>
         </div>
         <div class="modal-footer" style="border-top: 1px solid #E5E5E5;">

@@ -324,7 +324,7 @@
     };
 
     // ========== 选择世界书功能 ==========
-    window.charGenSelectWorldBooks = function(type) {
+    window.charGenSelectWorldBooks = async function(type) {
         console.log('选择世界书:', type);
         
         let screen = document.getElementById('gen-worldbook-selector-screen');
@@ -336,12 +336,13 @@
         // 设置当前选择类型
         screen.dataset.selectionType = type;
 
-        // 加载世界书列表
-        loadWorldBooksForSelection();
-
+        // 先显示屏幕
         if (typeof window.showScreen === 'function') {
             window.showScreen('gen-worldbook-selector-screen');
         }
+
+        // 加载世界书列表（异步）
+        await loadWorldBooksForSelection();
     };
 
     function createWorldBookSelectorScreen() {
@@ -362,71 +363,148 @@
         return screen;
     }
 
-    function loadWorldBooksForSelection() {
+    async function loadWorldBooksForSelection() {
         const container = document.getElementById('gen-worldbook-list');
-        if (!container) return;
-
-        // 从localStorage获取世界书
-        const worldBooks = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key.startsWith('worldBook_')) {
-                try {
-                    const book = JSON.parse(localStorage.getItem(key));
-                    worldBooks.push(book);
-                } catch (e) {
-                    console.error('解析世界书失败:', e);
-                }
-            }
-        }
-
-        if (worldBooks.length === 0) {
-            container.innerHTML = '<p style="text-align: center; color: #999; padding: 50px 20px;">暂无世界书</p>';
+        if (!container) {
+            console.error('世界书列表容器未找到');
             return;
         }
 
-        container.innerHTML = worldBooks.map(book => `
-            <div class="list-item" style="display: flex; align-items: center; gap: 10px;">
-                <input type="checkbox" 
-                       data-worldbook-id="${book.id}" 
-                       data-worldbook-name="${escapeHTML(book.name)}"
-                       style="width: 20px; height: 20px;">
-                <div style="flex: 1;">
-                    <div class="item-title">${escapeHTML(book.name)}</div>
-                    <div class="item-content">${escapeHTML((book.content || '').substring(0, 100))}...</div>
+        // 显示加载提示
+        container.innerHTML = '<p style="text-align: center; color: #999; padding: 50px 20px;">加载中...</p>';
+
+        // 从IndexedDB获取世界书
+        let worldBooks = [];
+        
+        try {
+            // 检查window.db是否存在
+            if (!window.db) {
+                console.error('window.db 未初始化');
+                container.innerHTML = '<p style="text-align: center; color: #f44; padding: 50px 20px;">数据库未初始化，请刷新页面重试</p>';
+                return;
+            }
+            
+            if (!window.db.worldBooks) {
+                console.error('window.db.worldBooks 不存在');
+                container.innerHTML = '<p style="text-align: center; color: #f44; padding: 50px 20px;">世界书数据表不存在</p>';
+                return;
+            }
+            
+            worldBooks = await window.db.worldBooks.toArray();
+            console.log('从IndexedDB加载世界书成功:', worldBooks.length, '个');
+            console.log('世界书详情:', worldBooks);
+            
+        } catch (e) {
+            console.error('从IndexedDB获取世界书失败:', e);
+            container.innerHTML = '<p style="text-align: center; color: #f44; padding: 50px 20px;">加载失败: ' + e.message + '</p>';
+            return;
+        }
+
+        if (worldBooks.length === 0) {
+            container.innerHTML = '<p style="text-align: center; color: #999; padding: 50px 20px;">暂无世界书<br><br>请先在主屏幕的"世界书"应用中创建世界书</p>';
+            return;
+        }
+
+        container.innerHTML = worldBooks.map(book => {
+            // 处理content字段（可能是数组或字符串）
+            let contentPreview = '';
+            if (Array.isArray(book.content)) {
+                // 如果是数组，获取条目数量
+                contentPreview = `包含 ${book.content.length} 个条目`;
+            } else if (typeof book.content === 'string') {
+                // 如果是字符串，截取前100个字符
+                contentPreview = book.content.substring(0, 100);
+                if (book.content.length > 100) contentPreview += '...';
+            } else {
+                contentPreview = '无内容';
+            }
+            
+            return `
+                <div class="list-item" style="display: flex; align-items: center; gap: 10px; padding: 15px; border-bottom: 1px solid var(--border-color);">
+                    <input type="checkbox" 
+                           data-worldbook-id="${book.id}" 
+                           data-worldbook-name="${escapeHTML(book.name)}"
+                           style="width: 20px; height: 20px;">
+                    <div style="flex: 1;">
+                        <div class="item-title" style="font-weight: 600; margin-bottom: 5px;">${escapeHTML(book.name)}</div>
+                        <div class="item-content" style="font-size: 13px; color: #666;">${escapeHTML(contentPreview)}</div>
+                    </div>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
-    window.confirmWorldBookSelection = function() {
+    window.confirmWorldBookSelection = async function() {
         const screen = document.getElementById('gen-worldbook-selector-screen');
         const type = screen.dataset.selectionType;
 
         const checkboxes = document.querySelectorAll('#gen-worldbook-list input[type="checkbox"]:checked');
-        const selectedBooks = Array.from(checkboxes).map(cb => ({
-            id: cb.dataset.worldbookId,
-            name: cb.dataset.worldbookName
-        }));
+        const selectedBooks = Array.from(checkboxes).map(cb => {
+            // 尝试将id转换为数字，如果不是数字则保持原样
+            let bookId = cb.dataset.worldbookId;
+            const numId = Number(bookId);
+            if (!isNaN(numId)) {
+                bookId = numId;
+            }
+            return {
+                id: bookId,
+                name: cb.dataset.worldbookName
+            };
+        });
 
         if (selectedBooks.length === 0) {
             alert('请至少选择一个世界书');
             return;
         }
 
-        // 获取选中的世界书内容
+        // 从IndexedDB获取选中的世界书内容
         let combinedContent = '';
-        selectedBooks.forEach(book => {
-            const bookData = localStorage.getItem('worldBook_' + book.id);
-            if (bookData) {
-                try {
-                    const parsed = JSON.parse(bookData);
-                    combinedContent += `\n\n=== ${parsed.name} ===\n${parsed.content}`;
-                } catch (e) {
-                    console.error('解析世界书失败:', e);
+        
+        try {
+            if (window.db && window.db.worldBooks) {
+                for (const book of selectedBooks) {
+                    const bookData = await window.db.worldBooks.get(book.id);
+                    if (bookData) {
+                        // 处理content字段（可能是数组或字符串）
+                        let contentText = '';
+                        if (Array.isArray(bookData.content)) {
+                            // 如果是数组，将每个条目格式化输出
+                            contentText = bookData.content.map((entry, index) => {
+                                if (typeof entry === 'object' && entry !== null) {
+                                    // 如果条目是对象，尝试提取关键信息
+                                    if (entry.keyword && entry.content) {
+                                        return `[${entry.keyword}]\n${entry.content}`;
+                                    } else if (entry.key && entry.value) {
+                                        return `[${entry.key}]\n${entry.value}`;
+                                    } else {
+                                        // 否则转为可读的JSON格式
+                                        return JSON.stringify(entry, null, 2);
+                                    }
+                                } else if (typeof entry === 'string') {
+                                    return entry;
+                                } else {
+                                    return String(entry);
+                                }
+                            }).join('\n\n');
+                        } else if (typeof bookData.content === 'string') {
+                            contentText = bookData.content;
+                        } else if (bookData.content) {
+                            contentText = JSON.stringify(bookData.content);
+                        } else {
+                            contentText = '';
+                        }
+                        
+                        combinedContent += `\n\n=== ${bookData.name} ===\n${contentText}`;
+                    } else {
+                        console.warn('未找到世界书:', book.id, book.name);
+                    }
                 }
             }
-        });
+        } catch (e) {
+            console.error('从IndexedDB获取世界书内容失败:', e);
+            alert('获取世界书内容失败，请重试');
+            return;
+        }
 
         // 填充到对应文本框
         if (type === 'background') {

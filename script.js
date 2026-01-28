@@ -16842,7 +16842,7 @@ async function sendUserTransfer() {
       if (isManageMode) {
         item.addEventListener('click', () => togglePresetSelection(preset.id));
       } else {
-        item.addEventListener('click', () => applyPersonaPreset(preset.id));
+        item.addEventListener('click', () => showPersonaActionModal(preset.id));
         addLongPressListener(item, () => showPresetActions(preset.id));
       }
       
@@ -16922,6 +16922,52 @@ async function sendUserTransfer() {
     editingPersonaPresetId = null;
   }
 
+  // 显示人设操作选择弹窗
+  let currentPersonaActionId = null;
+  function showPersonaActionModal(presetId) {
+    currentPersonaActionId = presetId;
+    const modal = document.getElementById('persona-action-modal');
+    modal.classList.add('visible');
+  }
+
+  // 隐藏人设操作弹窗
+  function hidePersonaActionModal() {
+    const modal = document.getElementById('persona-action-modal');
+    modal.classList.remove('visible');
+    currentPersonaActionId = null;
+  }
+
+  // 直接应用人设
+  function applyPersonaPresetDirect() {
+    if (!currentPersonaActionId) return;
+    const preset = state.personaPresets.find(p => p.id === currentPersonaActionId);
+    if (preset) {
+      document.getElementById('my-avatar-preview').src = preset.avatar;
+      document.getElementById('my-persona').value = preset.persona;
+    }
+    hidePersonaActionModal();
+    closePersonaLibrary();
+  }
+
+  // 编辑后应用人设
+  function editPersonaThenApply() {
+    if (!currentPersonaActionId) return;
+    editingPersonaPresetId = currentPersonaActionId;
+    const preset = state.personaPresets.find(p => p.id === editingPersonaPresetId);
+    if (!preset) return;
+    
+    // 保存原始内容，用于后续比较是否修改
+    window.originalPersonaContent = preset.persona;
+    
+    document.getElementById('persona-editor-title').textContent = '编辑人设预设';
+    document.getElementById('preset-avatar-preview').src = preset.avatar;
+    document.getElementById('preset-persona-input').value = preset.persona;
+    
+    hidePersonaActionModal();
+    personaEditorModal.classList.add('visible');
+  }
+
+  // 旧版本保留（用于兼容性）
   function applyPersonaPreset(presetId) {
     const preset = state.personaPresets.find(p => p.id === presetId);
     if (preset) {
@@ -16973,12 +17019,70 @@ async function sendUserTransfer() {
       alert("头像和人设不能都为空哦！");
       return;
     }
+    
     if (editingPersonaPresetId) {
       const preset = state.personaPresets.find(p => p.id === editingPersonaPresetId);
       if (preset) {
+        const oldPersona = preset.persona;
+        const personaChanged = oldPersona !== persona;
+        
+        // 如果人设内容有修改，询问是否同步
+        if (personaChanged && window.originalPersonaContent && window.originalPersonaContent !== persona) {
+          const shouldSync = await showCustomConfirm(
+            '同步更新',
+            `检测到人设内容已修改。\n\n原内容：${oldPersona.substring(0, 50)}${oldPersona.length > 50 ? '...' : ''}\n新内容：${persona.substring(0, 50)}${persona.length > 50 ? '...' : ''}\n\n是否同步更新到所有使用此人设的地方？`,
+            {
+              confirmText: '同步更新',
+              cancelText: '仅更新预设'
+            }
+          );
+          
+          if (shouldSync) {
+            // 同步到全局设置（如果当前使用的是这个人设）
+            const currentPersona = document.getElementById('my-persona')?.value;
+            if (currentPersona === oldPersona) {
+              document.getElementById('my-persona').value = persona;
+              document.getElementById('my-avatar-preview').src = avatar;
+              
+              // 保存到全局设置
+              const globalSettings = await db.globalSettings.get('main');
+              if (globalSettings) {
+                globalSettings.myPersona = persona;
+                globalSettings.myAvatar = avatar;
+                await db.globalSettings.put(globalSettings);
+              }
+            }
+            
+            // 同步到所有角色的单独人设配置
+            for (const chatId in state.chats) {
+              const chat = state.chats[chatId];
+              if (chat.customPersona === oldPersona) {
+                chat.customPersona = persona;
+                await db.chats.put(chat);
+              }
+            }
+            
+            // 同步到绿江作品设置中的User Persona
+            const stories = await db.grStories.toArray();
+            for (const story of stories) {
+              if (story.settings && story.settings.userPersonaId === editingPersonaPresetId) {
+                // 绿江中使用的是预设ID，不需要额外同步
+              }
+            }
+            
+            await showCustomAlert('同步完成', '已成功同步更新到所有使用此人设的地方！');
+          }
+        }
+        
         preset.avatar = avatar;
         preset.persona = persona;
         await db.personaPresets.put(preset);
+        
+        // 如果是"编辑后应用"模式，直接应用到当前
+        if (window.originalPersonaContent) {
+          document.getElementById('my-avatar-preview').src = avatar;
+          document.getElementById('my-persona').value = persona;
+        }
       }
     } else {
       const newPreset = {
@@ -16989,8 +17093,13 @@ async function sendUserTransfer() {
       await db.personaPresets.add(newPreset);
       state.personaPresets.push(newPreset);
     }
+    
+    // 清除原始内容标记
+    window.originalPersonaContent = null;
+    
     renderPersonaLibrary();
     closePersonaEditor();
+    closePersonaLibrary();
   }
 
   async function importTavernPersonas() {
@@ -27221,61 +27330,340 @@ case 'narration':
 
 
 
+  // 工具函数：HTML转义
+  function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // 批量导入相关的全局变量
+  let pendingImportCards = [];
+
   async function handleCardImport(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+    const files = Array.from(event.target.files);
+    if (!files || files.length === 0) return;
 
     try {
-      let cardData;
-      let avatarBase64 = null;
-
-      if (file.name.endsWith('.json')) {
-
-        const text = await file.text();
-        cardData = JSON.parse(text);
-      } else if (file.name.endsWith('.png')) {
-
-        const arrayBuffer = await file.arrayBuffer();
-
-        cardData = await parsePngForTavernData(arrayBuffer);
-
-
-        avatarBase64 = await new Promise(resolve => {
-        const reader = new FileReader();
-        reader.onload = async (readerEvent) => {
-            let base64Result = readerEvent.target.result;
-
-            
-            if (state.apiConfig.imgbbEnable && state.apiConfig.imgbbApiKey) {
-                try {
-                    await showCustomAlert("请稍候...", "正在上传角色卡封面到 ImgBB...");
-                    const imageUrl = await uploadImageToImgBB(base64Result);
-                    resolve(imageUrl); 
-                } catch (uploadError) {
-                    console.error(uploadError);
-                    await showCustomAlert("ImgBB 上传失败", `封面上传失败: ${uploadError.message}\n\n将继续使用本地 Base64 格式保存。`);
-                    resolve(base64Result); 
-                }
-            } else {
-                resolve(base64Result);
-            }
-        };
-        reader.readAsDataURL(file);
-    });
-      } else {
-        throw new Error("不支持的文件格式。请选择 .json 或 .png 文件。");
+      // 如果只有一个文件，使用旧的单文件导入流程
+      if (files.length === 1) {
+        await importSingleCard(files[0]);
+        event.target.value = null;
+        return;
       }
 
-
-      await createChatFromCardData(cardData, avatarBase64);
+      // 多文件：显示批量导入预览
+      await showBatchImportPreview(files);
 
     } catch (error) {
       console.error("角色卡导入失败:", error);
       await showCustomAlert("导入失败", `无法解析角色卡文件。\n错误: ${error.message}`);
     } finally {
-
       event.target.value = null;
     }
+  }
+
+  // 单个文件导入（原有逻辑）
+  async function importSingleCard(file) {
+    try {
+      let cardData;
+      let avatarBase64 = null;
+
+      if (file.name.endsWith('.json')) {
+        const text = await file.text();
+        cardData = JSON.parse(text);
+      } else if (file.name.endsWith('.png')) {
+        const arrayBuffer = await file.arrayBuffer();
+        cardData = await parsePngForTavernData(arrayBuffer);
+
+        avatarBase64 = await new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onload = async (readerEvent) => {
+            let base64Result = readerEvent.target.result;
+
+            if (state.apiConfig.imgbbEnable && state.apiConfig.imgbbApiKey) {
+              try {
+                await showCustomAlert("请稍候...", "正在上传角色卡封面到 ImgBB...");
+                const imageUrl = await uploadImageToImgBB(base64Result);
+                resolve(imageUrl);
+              } catch (uploadError) {
+                console.error(uploadError);
+                await showCustomAlert("ImgBB 上传失败", `封面上传失败: ${uploadError.message}\n\n将继续使用本地 Base64 格式保存。`);
+                resolve(base64Result);
+              }
+            } else {
+              resolve(base64Result);
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+      } else {
+        throw new Error("不支持的文件格式。请选择 .json 或 .png 文件。");
+      }
+
+      await createChatFromCardData(cardData, avatarBase64);
+
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // 显示批量导入预览界面
+  async function showBatchImportPreview(files) {
+    const modal = document.getElementById('batch-import-preview-modal');
+    const listContainer = document.getElementById('batch-import-preview-list');
+    
+    if (!modal || !listContainer) {
+      console.error('批量导入预览模态框未找到');
+      return;
+    }
+
+    // 显示加载提示
+    listContainer.innerHTML = '<p style="text-align: center; color: #999; padding: 50px 20px;">正在解析角色卡...</p>';
+    modal.style.display = 'flex';
+
+    // 解析所有文件
+    pendingImportCards = [];
+    const parsePromises = files.map(async (file, index) => {
+      try {
+        let cardData;
+        let avatarBase64 = null;
+        let fileType = file.name.endsWith('.png') ? 'png' : 'json';
+
+        if (fileType === 'json') {
+          const text = await file.text();
+          cardData = JSON.parse(text);
+        } else if (fileType === 'png') {
+          const arrayBuffer = await file.arrayBuffer();
+          cardData = await parsePngForTavernData(arrayBuffer);
+
+          // 读取PNG作为base64
+          avatarBase64 = await new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.readAsDataURL(file);
+          });
+        }
+
+        return {
+          id: `import_${Date.now()}_${index}`,
+          fileName: file.name,
+          fileType: fileType,
+          cardData: cardData,
+          avatarBase64: avatarBase64,
+          selected: true,
+          parseSuccess: true
+        };
+      } catch (error) {
+        console.error(`解析失败: ${file.name}`, error);
+        return {
+          id: `import_${Date.now()}_${index}`,
+          fileName: file.name,
+          fileType: file.name.endsWith('.png') ? 'png' : 'json',
+          error: error.message,
+          selected: false,
+          parseSuccess: false
+        };
+      }
+    });
+
+    pendingImportCards = await Promise.all(parsePromises);
+    renderBatchImportPreview();
+  }
+
+  // 渲染批量导入预览列表
+  function renderBatchImportPreview() {
+    const listContainer = document.getElementById('batch-import-preview-list');
+    if (!listContainer) return;
+
+    if (pendingImportCards.length === 0) {
+      listContainer.innerHTML = '<p style="text-align: center; color: #999; padding: 50px 20px;">没有可导入的角色卡</p>';
+      return;
+    }
+
+    listContainer.innerHTML = pendingImportCards.map(card => {
+      if (!card.parseSuccess) {
+        return `
+          <div class="list-item" style="padding: 15px; border-bottom: 1px solid var(--border-color); opacity: 0.5;">
+            <div style="display: flex; align-items: center; gap: 15px;">
+              <input type="checkbox" disabled style="width: 20px; height: 20px;">
+              <div style="width: 60px; height: 60px; background: #f5f5f5; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #999;">
+                ❌
+              </div>
+              <div style="flex: 1;">
+                <div style="font-weight: 600; color: #f44;">${escapeHtml(card.fileName)}</div>
+                <div style="font-size: 13px; color: #f44; margin-top: 5px;">解析失败: ${escapeHtml(card.error)}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      const name = card.cardData.name || card.cardData.data?.name || '未命名角色';
+      const description = card.cardData.description || card.cardData.data?.description || '';
+      const previewDesc = description.substring(0, 100) + (description.length > 100 ? '...' : '');
+      const avatarSrc = card.avatarBase64 || 'https://i.postimg.cc/y8xWzCqj/anime-boy.jpg';
+
+      return `
+        <div class="list-item" style="padding: 15px; border-bottom: 1px solid var(--border-color);">
+          <div style="display: flex; align-items: center; gap: 15px;">
+            <input type="checkbox" 
+                   class="batch-import-card-checkbox" 
+                   data-card-id="${card.id}" 
+                   ${card.selected ? 'checked' : ''}
+                   style="width: 20px; height: 20px;">
+            <img src="${avatarSrc}" 
+                 style="width: 60px; height: 60px; border-radius: 8px; object-fit: cover;"
+                 onerror="this.src='https://i.postimg.cc/y8xWzCqj/anime-boy.jpg'">
+            <div style="flex: 1;">
+              <div style="font-weight: 600; margin-bottom: 5px;">${escapeHtml(name)}</div>
+              <div style="font-size: 13px; color: #666; margin-bottom: 5px;">${escapeHtml(previewDesc)}</div>
+              <div style="font-size: 12px; color: #999;">
+                <span style="background: #e3f2fd; padding: 2px 8px; border-radius: 4px; margin-right: 5px;">${card.fileType.toUpperCase()}</span>
+                ${escapeHtml(card.fileName)}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // 绑定复选框事件
+    document.querySelectorAll('.batch-import-card-checkbox').forEach(checkbox => {
+      checkbox.addEventListener('change', (e) => {
+        const cardId = e.target.dataset.cardId;
+        const card = pendingImportCards.find(c => c.id === cardId);
+        if (card) {
+          card.selected = e.target.checked;
+        }
+        updateSelectAllCheckbox();
+      });
+    });
+
+    updateSelectAllCheckbox();
+  }
+
+  // 更新全选复选框状态
+  function updateSelectAllCheckbox() {
+    const selectAllCheckbox = document.getElementById('select-all-import-cards');
+    if (!selectAllCheckbox) return;
+
+    const successCards = pendingImportCards.filter(c => c.parseSuccess);
+    const selectedCount = successCards.filter(c => c.selected).length;
+
+    selectAllCheckbox.checked = selectedCount === successCards.length && successCards.length > 0;
+    selectAllCheckbox.indeterminate = selectedCount > 0 && selectedCount < successCards.length;
+  }
+
+  // 确认批量导入
+  async function confirmBatchImport() {
+    const selectedCards = pendingImportCards.filter(c => c.selected && c.parseSuccess);
+    
+    if (selectedCards.length === 0) {
+      await showCustomAlert("提示", "请至少选择一个角色卡进行导入");
+      return;
+    }
+
+    // 关闭预览模态框
+    const modal = document.getElementById('batch-import-preview-modal');
+    if (modal) modal.style.display = 'none';
+
+    // 显示进度提示
+    const progressDiv = document.createElement('div');
+    progressDiv.id = 'batch-import-progress';
+    progressDiv.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      z-index: 10001;
+      text-align: center;
+      min-width: 300px;
+    `;
+    document.body.appendChild(progressDiv);
+
+    let successCount = 0;
+    let failCount = 0;
+    const failedCards = [];
+
+    for (let i = 0; i < selectedCards.length; i++) {
+      const card = selectedCards[i];
+      
+      // 更新进度显示
+      progressDiv.innerHTML = `
+        <div style="font-size: 18px; font-weight: 600; margin-bottom: 15px;">正在导入角色卡</div>
+        <div style="font-size: 14px; color: #666; margin-bottom: 10px;">
+          ${i + 1} / ${selectedCards.length}
+        </div>
+        <div style="font-size: 14px; color: #999;">
+          ${escapeHtml(card.fileName)}
+        </div>
+        <div style="margin-top: 15px; width: 100%; height: 4px; background: #f0f0f0; border-radius: 2px; overflow: hidden;">
+          <div style="width: ${((i + 1) / selectedCards.length * 100)}%; height: 100%; background: #4CAF50; transition: width 0.3s;"></div>
+        </div>
+      `;
+
+      try {
+        // 处理ImgBB上传（仅针对PNG）
+        let finalAvatar = card.avatarBase64;
+        if (card.fileType === 'png' && state.apiConfig.imgbbEnable && state.apiConfig.imgbbApiKey) {
+          try {
+            finalAvatar = await uploadImageToImgBB(card.avatarBase64);
+          } catch (uploadError) {
+            console.error('ImgBB上传失败，使用本地Base64:', uploadError);
+          }
+        }
+
+        await createChatFromCardData(card.cardData, finalAvatar);
+        successCount++;
+      } catch (error) {
+        console.error(`导入失败: ${card.fileName}`, error);
+        failCount++;
+        failedCards.push({
+          name: card.fileName,
+          error: error.message
+        });
+      }
+
+      // 添加小延迟，让用户看到进度
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    // 移除进度提示
+    document.body.removeChild(progressDiv);
+
+    // 显示结果
+    let message = `✓ 成功导入 ${successCount} 个角色`;
+    if (failCount > 0) {
+      message += `\n✗ 失败 ${failCount} 个`;
+      if (failedCards.length <= 3) {
+        message += '\n\n失败列表：';
+        failedCards.forEach(fc => {
+          message += `\n• ${fc.name}: ${fc.error}`;
+        });
+      }
+    }
+    await showCustomAlert("导入完成", message);
+
+    // 清空待导入列表
+    pendingImportCards = [];
+
+    // 刷新聊天列表
+    if (typeof renderChatList === 'function') {
+      renderChatList();
+    }
+  }
+
+  // 取消批量导入
+  function cancelBatchImport() {
+    const modal = document.getElementById('batch-import-preview-modal');
+    if (modal) modal.style.display = 'none';
+    pendingImportCards = [];
   }
 
 
@@ -51372,7 +51760,19 @@ const DEFAULT_AUTHORS = [
     { name: "细腻情感", style: "侧重心理描写，文笔细腻，擅长捕捉人物间微妙的情感流动，氛围感强。", maxOutput: 600 },
     { name: "正剧剧情", style: "注重剧情逻辑，节奏紧凑，对白干练，擅长推动故事情节发展。", maxOutput: 800 },
     { name: "轻松日常", style: "幽默风趣，轻松愉快，多用生动的对话和有趣的细节描写，治愈系。", maxOutput: 500 },
-    { name: "意识流", style: "大量使用隐喻和象征，句式优美复杂，着重于意象和哲学思考，弱化具体情节。", maxOutput: 400 }
+    { name: "意识流", style: "大量使用隐喻和象征，句式优美复杂，着重于意象和哲学思考，弱化具体情节。", maxOutput: 400 },
+    
+    // 著名作家文风
+    { name: "鲁迅", style: "犀利深刻，善用讽刺和批判，文笔简练有力，揭露社会黑暗面，语言辛辣而富有战斗性。多用短句，节奏明快，常有深刻的社会洞察。", maxOutput: 600 },
+    { name: "张爱玲", style: "细腻敏感，擅长描写都市男女的情感纠葛，文字华丽而苍凉，善用比喻和意象，笔触冷静克制，充满人生况味。关注细节，氛围感极强。", maxOutput: 700 },
+    { name: "老舍", style: "京味十足，语言生动幽默，善于刻画小人物的悲欢离合，文字朴实而富有生活气息，对话生动传神，充满市井烟火味。", maxOutput: 650 },
+    { name: "沈从文", style: "抒情诗意，文字清新隽永，善于描绘湘西风情和人性美好，笔触细腻温婉，充满诗意和画面感，语言优美流畅。", maxOutput: 600 },
+    { name: "钱钟书", style: "博学机智，语言幽默讽刺，善用典故和比喻，文字雅致而犀利，充满知识分子的睿智和调侃，叙述风格独特。", maxOutput: 700 },
+    { name: "巴金", style: "激情澎湃，文字真挚热烈，关注社会现实和人性挣扎，笔触饱含感情，语言流畅自然，充满理想主义色彩。", maxOutput: 650 },
+    { name: "林语堂", style: "幽默雅致，中西合璧，文字闲适自在，善于议论和抒情，语言轻松诙谐，充满生活哲理和人生智慧。", maxOutput: 600 },
+    { name: "冰心", style: "清新纯净，文字温婉柔美，善于抒发母爱、童真和自然之美，笔触细腻真挚，语言优美如诗，充满温情。", maxOutput: 500 },
+    { name: "余华", style: "冷峻克制，善于描写命运的荒诞和人性的坚韧，文字简洁有力，叙事冷静客观，却能直击人心，充满悲悯情怀。", maxOutput: 650 },
+    { name: "莫言", style: "魔幻现实，想象力丰富，文字恣肆汪洋，善于用民间传说和乡土元素，语言浓烈奔放，充满生命力和张力。", maxOutput: 800 }
 ];
 
 // 1. 初始化数据 (在 openGreenRiverScreen 时调用)
@@ -51663,6 +52063,71 @@ async function loadStorySettingsUI(settings = {}, selectedAuthorId = null) {
     document.getElementById('gr-output-length').value = settings.outputLength || 500;
     document.getElementById('gr-context-limit').value = settings.contextLimit || 20;
     document.getElementById('gr-macro-world-view').value = settings.macroWorldView || '';
+    
+    // 6. 加载作者追更相关设置
+    const autoUpdateEnabled = document.getElementById('gr-auto-update-enabled');
+    const autoUpdateSettings = document.getElementById('gr-auto-update-settings');
+    const updateType = document.getElementById('gr-auto-update-type');
+    const updateAuthorSelect = document.getElementById('gr-update-author-select');
+    const updateCharacterSelect = document.getElementById('gr-update-character-select');
+    const updateFrequency = document.getElementById('gr-update-frequency');
+    const customFrequencyGroup = document.getElementById('gr-custom-frequency-group');
+    const customFrequencyHours = document.getElementById('gr-custom-frequency-hours');
+    
+    // 回显追更开关
+    autoUpdateEnabled.checked = settings.autoUpdate?.enabled || false;
+    autoUpdateSettings.style.display = autoUpdateEnabled.checked ? 'block' : 'none';
+    
+    // 填充作者选择列表（追更用）
+    updateAuthorSelect.innerHTML = '';
+    authors.forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a.id;
+        opt.textContent = a.name;
+        if(settings.autoUpdate?.authorId === a.id) opt.selected = true;
+        updateAuthorSelect.appendChild(opt);
+    });
+    
+    // 填充角色选择列表（追更用）
+    updateCharacterSelect.innerHTML = '';
+    allEntities.forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item.id;
+        opt.textContent = `${item.name} (${item.type})`;
+        if(settings.autoUpdate?.characterId === item.id) opt.selected = true;
+        updateCharacterSelect.appendChild(opt);
+    });
+    
+    // 回显追更方式
+    updateType.value = settings.autoUpdate?.type || 'author';
+    document.getElementById('gr-update-author-select-group').style.display = 
+        updateType.value === 'author' ? 'block' : 'none';
+    document.getElementById('gr-update-character-select-group').style.display = 
+        updateType.value === 'character' ? 'block' : 'none';
+    
+    // 回显更新频率
+    updateFrequency.value = settings.autoUpdate?.frequency || 'manual';
+    customFrequencyGroup.style.display = 
+        updateFrequency.value === 'custom' ? 'block' : 'none';
+    customFrequencyHours.value = settings.autoUpdate?.customHours || 24;
+    
+    // 绑定追更设置的事件监听
+    autoUpdateEnabled.onchange = () => {
+        autoUpdateSettings.style.display = autoUpdateEnabled.checked ? 'block' : 'none';
+    };
+    
+    updateType.onchange = () => {
+        document.getElementById('gr-update-author-select-group').style.display = 
+            updateType.value === 'author' ? 'block' : 'none';
+        document.getElementById('gr-update-character-select-group').style.display = 
+            updateType.value === 'character' ? 'block' : 'none';
+    };
+    
+    updateFrequency.onchange = () => {
+        customFrequencyGroup.style.display = 
+            updateFrequency.value === 'custom' ? 'block' : 'none';
+    };
+    
     // 绑定按钮事件
     const saveBtn = document.getElementById('gr-save-story-btn');
     const cancelBtn = document.getElementById('gr-cancel-settings-btn');
@@ -51701,13 +52166,28 @@ async function saveStorySettings() {
     if (!title) return alert("请输入书名");
     if (charIds.length === 0) return alert("请至少选择一个角色或群聊");
 
+    // 获取作者追更设置
+    const autoUpdateEnabled = document.getElementById('gr-auto-update-enabled').checked;
+    const autoUpdate = autoUpdateEnabled ? {
+        enabled: true,
+        type: document.getElementById('gr-auto-update-type').value,
+        authorId: parseInt(document.getElementById('gr-update-author-select').value),
+        characterId: document.getElementById('gr-update-character-select').value,
+        frequency: document.getElementById('gr-update-frequency').value,
+        customHours: parseInt(document.getElementById('gr-custom-frequency-hours').value) || 24,
+        lastUpdate: null // 首次创建时为null，之后会记录最后更新时间
+    } : {
+        enabled: false
+    };
+    
     const settings = { 
         charIds, 
         bookIds, 
         userPersonaId, 
         outputLength, // 这里的名字要和 prompt 里的对应
         contextLimit,
-        macroWorldView 
+        macroWorldView,
+        autoUpdate // 添加作者追更设置
     };
 
     if (grState.activeStoryId) {
@@ -52192,13 +52672,366 @@ function closeChapterList() {
 // 暴露给 HTML onclick
 window.openChapterList = openChapterList;
 window.closeChapterList = closeChapterList;
-// 暴露全局
+// ==========================================
+// ▼▼▼ 作者追更功能 ▼▼▼
+// ==========================================
+
+// 检查是否需要自动更新
+async function checkAutoUpdate(story) {
+    if (!story.settings.autoUpdate || !story.settings.autoUpdate.enabled) {
+        return false;
+    }
+    
+    const autoUpdate = story.settings.autoUpdate;
+    
+    // 如果频率设置为手动，不自动更新
+    if (autoUpdate.frequency === 'manual') {
+        return false;
+    }
+    
+    // 如果从未更新过，立即触发第一次更新
+    if (!autoUpdate.lastUpdate) {
+        return true;
+    }
+    
+    // 计算更新间隔（毫秒）
+    let intervalMs;
+    switch (autoUpdate.frequency) {
+        case 'daily':
+            intervalMs = 24 * 60 * 60 * 1000; // 24小时
+            break;
+        case 'weekly':
+            intervalMs = 7 * 24 * 60 * 60 * 1000; // 7天
+            break;
+        case 'custom':
+            intervalMs = (autoUpdate.customHours || 24) * 60 * 60 * 1000;
+            break;
+        default:
+            return false;
+    }
+    
+    // 检查是否到达更新时间
+    const now = Date.now();
+    const timeSinceLastUpdate = now - autoUpdate.lastUpdate;
+    return timeSinceLastUpdate >= intervalMs;
+}
+
+// 自动生成新章节
+async function autoGenerateChapter(storyId) {
+    try {
+        console.log(`[作者追更] 开始为作品 ${storyId} 生成新章节`);
+        
+        const story = await db.grStories.get(storyId);
+        if (!story) {
+            console.error(`[作者追更] 作品 ${storyId} 不存在`);
+            return false;
+        }
+        
+        const autoUpdate = story.settings.autoUpdate;
+        if (!autoUpdate || !autoUpdate.enabled) {
+            return false;
+        }
+        
+        // 获取作者信息
+        const author = await db.grAuthors.get(story.authorId);
+        if (!author) {
+            console.error(`[作者追更] 作者 ${story.authorId} 不存在`);
+            return false;
+        }
+        
+        // 构建生成提示词
+        const settingValue = parseInt(story.settings.outputLength) || 500;
+        const targetWordCount = Math.floor(settingValue * 1.5);
+        const historyLimit = story.settings.contextLimit || 20;
+        
+        // 获取角色信息
+        let charsContext = "";
+        for (const charId of story.settings.charIds) {
+            if (charId.startsWith('npc_')) {
+                const npcId = parseInt(charId.replace('npc_', ''));
+                const npc = await db.npcs.get(npcId);
+                if (npc) {
+                    charsContext += `[NPC] ${npc.name}: ${npc.description || ''}\n`;
+                }
+            } else {
+                const char = state.chats[charId];
+                if (char) {
+                    charsContext += `${char.name}: ${char.firstMessage || char.description || ''}\n`;
+                }
+            }
+        }
+        
+        // 获取世界书信息
+        let worldBookContext = "";
+        for (const bookId of story.settings.bookIds) {
+            const book = await db.worldBooks.get(bookId);
+            if (book) {
+                worldBookContext += `\n[${book.name}]\n`;
+                if (Array.isArray(book.content)) {
+                    book.content.forEach(entry => {
+                        if (typeof entry === 'object' && entry.content) {
+                            worldBookContext += `${entry.content}\n`;
+                        } else if (typeof entry === 'string') {
+                            worldBookContext += `${entry}\n`;
+                        }
+                    });
+                } else if (typeof book.content === 'string') {
+                    worldBookContext += book.content;
+                }
+            }
+        }
+        
+        // 获取历史章节
+        const recentChapters = story.chapters.slice(-historyLimit);
+        let chaptersText = "";
+        recentChapters.forEach((ch, idx) => {
+            const chTitle = ch.title || `第 ${idx + 1} 章`;
+            chaptersText += `\n\n[${chTitle}]\n摘要: ${ch.summary || '无'}\n正文:\n${ch.content}`;
+        });
+        
+        // 根据追更方式构建特殊提示词
+        let updatePrompt = "";
+        if (autoUpdate.type === 'character') {
+            // 使用角色视角
+            const charId = autoUpdate.characterId;
+            let charName = "未知角色";
+            if (charId.startsWith('npc_')) {
+                const npcId = parseInt(charId.replace('npc_', ''));
+                const npc = await db.npcs.get(npcId);
+                if (npc) charName = npc.name;
+            } else {
+                const char = state.chats[charId];
+                if (char) charName = char.name;
+            }
+            updatePrompt = `\n\n【特别说明】本次更新请以 ${charName} 的第一人称视角进行叙述，展现${charName}的内心活动和所见所闻。`;
+        } else if (autoUpdate.type === 'author') {
+            // 使用指定作者文风
+            const updateAuthor = await db.grAuthors.get(autoUpdate.authorId);
+            if (updateAuthor) {
+                updatePrompt = `\n\n【特别说明】本次更新请严格模仿【${updateAuthor.name}】的文风：${updateAuthor.style}`;
+            }
+        }
+        
+        // 构建完整提示词
+        const fullPrompt = `你是一位专业的小说续写AI。请根据以下信息，续写下一章节内容。
+
+【基础设定】
+${story.settings.macroWorldView || '无特殊设定'}
+
+【角色信息】
+${charsContext}
+
+${worldBookContext}
+
+【已有章节】（作为上下文参考）${chaptersText}
+
+【作者文风】
+${author.style}
+
+${updatePrompt}
+
+【续写要求】
+1. 这是自动追更功能生成的新章节，请自然地推进剧情发展
+2. 字数要求：约 ${targetWordCount} 字
+3. 保持与前文的连贯性
+4. 符合角色性格和世界观设定
+5. 请输出: 标题（一行）、摘要（一小段）、正文（完整章节内容）
+
+格式示例：
+标题: 第X章 XXX
+摘要: XXX（简要概括本章内容，50字以内）
+正文:
+（这里是章节正文内容）
+
+现在开始续写：`;
+        
+        // 调用AI生成
+        const apiConfig = await db.apiConfig.get('main');
+        if (!apiConfig || !apiConfig.proxyUrl || !apiConfig.apiKey) {
+            console.error('[作者追更] API配置不完整');
+            return false;
+        }
+        
+        const isGemini = apiConfig.proxyUrl.includes('generativelanguage');
+        let response;
+        
+        if (isGemini) {
+            const payload = {
+                contents: [{
+                    parts: [{
+                        text: fullPrompt
+                    }]
+                }]
+            };
+            
+            response = await fetch(`${apiConfig.proxyUrl}/${apiConfig.model}:generateContent?key=${apiConfig.apiKey}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+        } else {
+            const payload = {
+                model: apiConfig.model,
+                messages: [{
+                    role: 'user',
+                    content: fullPrompt
+                }],
+                temperature: 0.8,
+                max_tokens: targetWordCount * 2
+            };
+            
+            response = await fetch(`${apiConfig.proxyUrl}/v1/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiConfig.apiKey}`
+                },
+                body: JSON.stringify(payload)
+            });
+        }
+        
+        if (!response.ok) {
+            console.error('[作者追更] API请求失败:', response.status);
+            return false;
+        }
+        
+        const data = await response.json();
+        let aiOutput = '';
+        
+        if (isGemini) {
+            if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                aiOutput = data.candidates[0].content.parts.map(p => p.text).join('');
+            }
+        } else {
+            if (data.choices && data.choices[0] && data.choices[0].message) {
+                aiOutput = data.choices[0].message.content;
+            }
+        }
+        
+        if (!aiOutput) {
+            console.error('[作者追更] AI返回内容为空');
+            return false;
+        }
+        
+        // 解析AI输出
+        const lines = aiOutput.split('\n');
+        let newTitle = `第 ${story.chapters.length + 1} 章`;
+        let newSummary = '';
+        let newContent = '';
+        
+        let currentSection = '';
+        for (let line of lines) {
+            if (line.startsWith('标题:') || line.startsWith('标题：')) {
+                newTitle = line.replace(/^标题[:：]\s*/, '').trim();
+                currentSection = 'title';
+            } else if (line.startsWith('摘要:') || line.startsWith('摘要：')) {
+                newSummary = line.replace(/^摘要[:：]\s*/, '').trim();
+                currentSection = 'summary';
+            } else if (line.startsWith('正文:') || line.startsWith('正文：')) {
+                currentSection = 'content';
+            } else if (currentSection === 'content') {
+                newContent += line + '\n';
+            } else if (currentSection === 'summary' && !line.startsWith('正文')) {
+                newSummary += line + ' ';
+            }
+        }
+        
+        newContent = newContent.trim();
+        newSummary = newSummary.trim();
+        
+        if (!newContent) {
+            console.error('[作者追更] 解析内容失败');
+            return false;
+        }
+        
+        // 添加新章节
+        story.chapters.push({
+            title: newTitle,
+            content: newContent,
+            summary: newSummary,
+            createdAt: Date.now(),
+            autoGenerated: true // 标记为自动生成
+        });
+        
+        // 更新最后更新时间
+        story.settings.autoUpdate.lastUpdate = Date.now();
+        story.lastUpdated = Date.now();
+        
+        await db.grStories.put(story);
+        
+        console.log(`[作者追更] 成功为作品《${story.title}》生成新章节: ${newTitle}`);
+        return true;
+        
+    } catch (error) {
+        console.error('[作者追更] 生成失败:', error);
+        return false;
+    }
+}
+
+// 检查所有作品的追更状态
+async function checkAllStoriesForAutoUpdate() {
+    try {
+        const stories = await db.grStories.toArray();
+        
+        for (const story of stories) {
+            if (await checkAutoUpdate(story)) {
+                console.log(`[作者追更] 作品《${story.title}》需要更新`);
+                await autoGenerateChapter(story.id);
+                // 添加延迟，避免同时发送太多请求
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+        }
+    } catch (error) {
+        console.error('[作者追更] 检查更新失败:', error);
+    }
+}
+
+// 启动追更定时器（每小时检查一次）
+let autoUpdateTimer = null;
+
+function startAutoUpdateTimer() {
+    if (autoUpdateTimer) {
+        clearInterval(autoUpdateTimer);
+    }
+    
+    // 每小时检查一次
+    autoUpdateTimer = setInterval(() => {
+        console.log('[作者追更] 定时检查开始...');
+        checkAllStoriesForAutoUpdate();
+    }, 60 * 60 * 1000); // 1小时
+    
+    console.log('[作者追更] 定时器已启动');
+}
+
+// 停止追更定时器
+function stopAutoUpdateTimer() {
+    if (autoUpdateTimer) {
+        clearInterval(autoUpdateTimer);
+        autoUpdateTimer = null;
+        console.log('[作者追更] 定时器已停止');
+    }
+}
+
+// 页面加载时启动定时器
+if (typeof window !== 'undefined') {
+    window.addEventListener('load', () => {
+        startAutoUpdateTimer();
+        // 立即检查一次
+        setTimeout(checkAllStoriesForAutoUpdate, 5000); // 延迟5秒后首次检查
+    });
+}
+
+// 暴露给全局
 window.openGreenRiverScreen = openGreenRiverScreen;
 window.openAuthorManager = openAuthorManager;
 window.createNewStory = createNewStory;
 window.openStorySettings = openStorySettings;
 window.addAuthor = addAuthor;
 window.deleteAuthor = deleteAuthor;
+window.checkAllStoriesForAutoUpdate = checkAllStoriesForAutoUpdate; // 手动触发检查
+window.autoGenerateChapter = autoGenerateChapter; // 手动触发单个作品更新
 // ==========================================
 // ▼▼▼ 邮箱 (Mail) 功能模块 ▼▼▼
 // ==========================================
@@ -54290,6 +55123,21 @@ ${recentHistoryWithUser}
 
     document.getElementById('import-data-input').addEventListener('change', e => handleSmartImport(e.target.files[0]));
     document.getElementById('import-card-input').addEventListener('change', handleCardImport);
+    
+    // 批量导入模态框事件监听
+    document.getElementById('select-all-import-cards')?.addEventListener('change', (e) => {
+      const checkboxes = document.querySelectorAll('.batch-import-card-checkbox');
+      checkboxes.forEach(cb => {
+        cb.checked = e.target.checked;
+        const cardId = cb.dataset.cardId;
+        const card = pendingImportCards.find(c => c.id === cardId);
+        if (card) card.selected = e.target.checked;
+      });
+    });
+    
+    document.getElementById('confirm-batch-import-btn')?.addEventListener('click', confirmBatchImport);
+    document.getElementById('cancel-batch-import-btn')?.addEventListener('click', cancelBatchImport);
+    
     // ============================================================
     // ▼▼▼ 全局安全返回与变量清理系统 (防炸群/防串台) ▼▼▼
     // ============================================================
@@ -56939,6 +57787,11 @@ if (isGroup) {
     document.getElementById('preset-action-edit').addEventListener('click', openPersonaEditorForEdit);
     document.getElementById('preset-action-delete').addEventListener('click', deletePersonaPreset);
     document.getElementById('preset-action-cancel').addEventListener('click', hidePresetActions);
+    
+    // 新增：人设操作弹窗事件绑定
+    document.getElementById('apply-persona-direct-btn').addEventListener('click', applyPersonaPresetDirect);
+    document.getElementById('edit-persona-first-btn').addEventListener('click', editPersonaThenApply);
+    document.getElementById('cancel-persona-action-btn').addEventListener('click', hidePersonaActionModal);
 
     document.getElementById('selection-cancel-btn').addEventListener('click', exitSelectionMode);
 
