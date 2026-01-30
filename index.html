@@ -232,6 +232,12 @@
                 </div>
                 <span class="label">Myphone</span>
               </div>
+              <div class="desktop-app-icon" onclick="openDrawAndGuess()">
+                <div class="icon-bg-desktop">
+                  <img id="icon-img-draw-guess" src="https://i.postimg.cc/k5dG3B4p/draw-guess-icon.png" alt="你画我猜">
+                </div>
+                <span class="label">你画我猜</span>
+              </div>
               <div class="desktop-app-icon" onclick="openCharacterGeneratorScreen()">
                 <div class="icon-bg-desktop">
                   <img id="icon-img-char-generator" src="https://i.postimg.cc/nzGYM8qb/character-gen.jpg" alt="角色生成">
@@ -269,7 +275,10 @@
       <div id="char-home-screen" class="char-screen active">
         <div style="height: 50px;"></div>
 
-        <div id="cphone-layout-container">
+        <div id="cphone-pages-container">
+          <div id="cphone-pages">
+            <div class="cphone-page">
+              <div id="cphone-layout-container">
             
             <div class="cphone-staggered-group">
                 <div class="cphone-bubble-pill top">
@@ -346,6 +355,33 @@
                 </div>
             </div>
 
+              </div>
+            </div>
+
+            <!-- CPhone 第二页 -->
+            <div class="cphone-page">
+              <div id="cphone-page-2-container">
+                <div style="height: 80px;"></div>
+                
+                <div class="cphone-fixed-row">
+                  <div class="cphone-fixed-app-grid">
+                    <div class="app-icon small" onclick="openCharApp('settings')">
+                      <div class="icon-bg"><img id="cphone-icon-img-settings" src="https://i.postimg.cc/mkmMRpqb/settings-icon.png"></div>
+                      <span class="label" data-lang-key="cphoneAppSettings">设置</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- 页面指示器 -->
+        <div class="cphone-pagination">
+          <span class="cphone-pagination-dot active" data-page="0"></span>
+          <span class="cphone-pagination-dot" data-page="1"></span>
         </div>
 
         <div class="cphone-dock-container">
@@ -1590,63 +1626,6 @@
             </div>
         </div>
 
-        <!-- 提示词定义 -->
-        <div class="settings-header">提示词定义</div>
-        <div class="settings-section">
-            <!-- 自定义提示词主开关 -->
-            <div class="settings-item">
-                <label>启用自定义提示词</label>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="custom-prompt-enabled-switch">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            
-            <!-- 自定义提示词详情 -->
-            <div id="custom-prompt-details" style="display:none;">
-                <!-- 自定义模式选择 -->
-                <div class="settings-item">
-                    <div>
-                        <div style="font-weight: 500;">自定义模式</div>
-                        <div style="font-size: 12px; color: var(--text-secondary);">选择如何应用你的自定义提示词</div>
-                    </div>
-                    <div class="settings-right">
-                        <select id="custom-prompt-mode-select" class="settings-select">
-                            <option value="append">追加模式（推荐）</option>
-                            <option value="override">覆盖模式（高级）</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <div style="font-size: 12px; color: #666; margin: 10px 0; padding: 10px; background: #fff3cd; border-radius: 6px;">
-                    <strong>⚠️ 模式说明：</strong><br>
-                    • <strong>追加模式</strong>：你的内容会添加到原提示词末尾（不影响指令列表）<br>
-                    • <strong>覆盖模式</strong>：完全替换核心提示词（保留指令列表），需谨慎使用
-                </div>
-                
-                <!-- 文本框 -->
-                <div class="settings-item" style="flex-direction: column; align-items: stretch;">
-                    <label style="margin-bottom: 8px;">自定义提示词内容</label>
-                    <textarea id="custom-prompt-textarea" 
-                        placeholder="在这里输入你的自定义提示词规则&#10;&#10;例如：&#10;1. 角色的性格特征应基于人设，而非性别刻板印象&#10;2. 保持真实、自然的语言风格，避免过度夸张的表达&#10;3. 角色是一个有自己思想和生活的完整个体，可以表达不同意见"
-                        style="width: 100%; min-height: 150px; padding: 10px; border: 1px solid #ddd; border-radius: 6px; resize: vertical; font-family: inherit; font-size: 14px;"
-                    ></textarea>
-                </div>
-                
-                <!-- 导入按钮区域 -->
-                <div class="settings-item" style="justify-content: space-around; margin-top: 10px;">
-                    <button id="import-prompt-btn" class="settings-mini-btn">导入文件</button>
-                    <button id="clear-custom-prompt-btn" class="settings-mini-btn">清空</button>
-                    <button id="preview-prompt-btn" class="settings-mini-btn">预览效果</button>
-                </div>
-                
-                <input type="file" id="import-prompt-file-input" accept=".txt,.json,.docx" style="display: none;">
-                
-                <div style="font-size: 11px; color: #999; margin-top: 10px; padding: 8px; background: #f9f9f9; border-radius: 4px;">
-                    💡 支持导入 TXT、JSON、DOCX 格式的文件。导入后的内容会自动填充到文本框中。
-                </div>
-            </div>
-        </div>
 
         <!-- 联机功能 -->
         <div class="settings-header">
@@ -3211,6 +3190,19 @@
        <span class="slider"></span> 
    </label>
 </div>
+
+            <!-- 角色知晓窥屏开关 -->
+            <div class="settings-item" id="phone-viewing-awareness-group" style="display: none;">
+    <div>
+       <label>角色知晓手机窥屏</label>
+       <div class="settings-desc">打开后，查看角色手机的行为会作为系统消息记录到聊天中</div>
+   </div>
+   <label class="toggle-switch"> 
+       <input type="checkbox" id="phone-viewing-awareness-toggle"> 
+       <span class="slider"></span> 
+   </label>
+</div>
+
             <!-- Token 统计 -->
             <div class="settings-section">
                 <div class="settings-item">
@@ -4641,23 +4633,26 @@
         <span style="font-size: 16px; font-weight: 500;">真心话</span>
         <div style="display: flex; gap: 10px; align-items: center;">
           <button id="truth-game-settings-btn" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #999; line-height: 1; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">⚙</button>
+          <button id="minimize-truth-game-btn" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999; line-height: 1; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">−</button>
           <button id="close-truth-game-btn" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #999; line-height: 1; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">×</button>
         </div>
       </div>
       <div class="modal-body" style="flex: 1; overflow-y: auto; background-color: #f5f5f5; padding: 0; display: flex; flex-direction: column;">
         <div id="truth-game-messages" style="flex: 1; overflow-y: auto; padding: 15px;"></div>
       </div>
-      <div style="background: #fff; border-top: 1px solid #e0e0e0; padding: 10px 15px;">
+      <div id="truth-game-input-area" style="background: #fff; border-top: 1px solid #e0e0e0; padding: 10px 15px;">
         <div id="truth-rps-selector" style="display: none; gap: 8px; margin-bottom: 10px;">
           <button class="truth-rps-btn" data-choice="rock" style="flex: 1; padding: 10px; background: #fff; border: 1px solid #d0d0d0; border-radius: 4px; cursor: pointer; font-size: 14px; color: #333;">石头</button>
           <button class="truth-rps-btn" data-choice="scissors" style="flex: 1; padding: 10px; background: #fff; border: 1px solid #d0d0d0; border-radius: 4px; cursor: pointer; font-size: 14px; color: #333;">剪刀</button>
           <button class="truth-rps-btn" data-choice="paper" style="flex: 1; padding: 10px; background: #fff; border: 1px solid #d0d0d0; border-radius: 4px; cursor: pointer; font-size: 14px; color: #333;">布</button>
         </div>
-        <div style="display: flex; gap: 10px; align-items: flex-end;">
-          <textarea id="truth-input" rows="1" placeholder="输入消息..." style="flex: 1; padding: 10px; border: 1px solid #d0d0d0; border-radius: 4px; resize: none; font-size: 14px; min-height: 40px; max-height: 100px;"></textarea>
-          <button id="truth-start-game-btn" style="padding: 10px 15px; background: #ff9500; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; color: white; white-space: nowrap;">开始游戏</button>
-          <button id="truth-call-api-btn" style="padding: 10px 15px; background: #fff; border: 1px solid #d0d0d0; border-radius: 4px; cursor: pointer; font-size: 14px; color: #333; white-space: nowrap;">调用API</button>
-          <button id="truth-send-btn" style="padding: 10px 20px; background: #07c160; border: none; border-radius: 4px; cursor: pointer; color: white; font-size: 14px; white-space: nowrap;">发送</button>
+        <div style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+          <textarea id="truth-input" rows="1" placeholder="输入消息..." style="flex: 1 1 100%; padding: 10px; border: 1px solid #d0d0d0; border-radius: 4px; resize: none; font-size: 14px; min-height: 40px; max-height: 100px; min-width: 0;"></textarea>
+          <div id="truth-game-buttons" style="display: flex; gap: 8px; flex: 1 1 100%;">
+            <button id="truth-start-game-btn" style="flex: 1; padding: 10px 12px; background: #ff9500; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; color: white; white-space: nowrap;">开始游戏</button>
+            <button id="truth-call-api-btn" style="flex: 1; padding: 10px 12px; background: #fff; border: 1px solid #d0d0d0; border-radius: 4px; cursor: pointer; font-size: 14px; color: #333; white-space: nowrap;">调用API</button>
+            <button id="truth-send-btn" style="flex: 1; padding: 10px 12px; background: #07c160; border: none; border-radius: 4px; cursor: pointer; color: white; font-size: 14px; white-space: nowrap;">发送</button>
+          </div>
         </div>
       </div>
     </div>
@@ -4670,8 +4665,8 @@
       <div class="modal-body" style="padding: 20px;">
         <div class="form-group">
           <label>AI参考历史轮数</label>
-          <input type="number" id="truth-history-limit-input" min="1" max="20" value="5" style="width: 100%; padding: 8px; border: 1px solid #d0d0d0; border-radius: 4px;">
-          <p style="font-size: 12px; color: #999; margin-top: 5px;">限制AI参考的历史轮数，避免token过大。完整记录仍会保存到聊天历史。</p>
+          <input type="number" id="truth-history-limit-input" min="1" value="5" style="width: 100%; padding: 8px; border: 1px solid #d0d0d0; border-radius: 4px;">
+          <p style="font-size: 12px; color: #999; margin-top: 5px;">限制AI参考的历史轮数，避免token过大。建议设置为5-20轮，设置过大会消耗更多token。完整记录仍会保存到聊天历史。</p>
         </div>
       </div>
       <div class="modal-footer">
@@ -4680,11 +4675,16 @@
       </div>
     </div>
   </div>
+  <div id="truth-game-float-ball" style="display: none;">
+    <img id="truth-game-float-avatar" src="" alt="角色头像">
+    <div id="truth-game-float-indicator"></div>
+  </div>
   <div id="watch-together-modal" class="modal">
     <div id="watch-together-container">
       <div id="watch-together-header">
         <span style="font-size: 16px; font-weight: 500;">一起看电影</span>
         <div style="display: flex; gap: 10px; align-items: center;">
+          <button id="watch-together-playlist-btn" style="font-size: 16px;">播放列表</button>
           <button id="watch-together-settings-btn" style="font-size: 16px;">设置</button>
           <button id="watch-together-upload-btn" style="font-size: 20px; font-weight: bold;">+</button>
           <button id="close-watch-together-btn" style="font-size: 24px;">×</button>
@@ -4761,6 +4761,39 @@
       </div>
       <div class="modal-footer">
         <button class="cancel" id="cancel-watch-together-search-btn">取消</button>
+      </div>
+    </div>
+  </div>
+  <div id="watch-together-playlist-modal" class="modal" style="z-index: 10001;">
+    <div class="modal-content" style="width: 600px; max-width: 90vw; height: 70vh;">
+      <div class="modal-header">
+        <span>播放列表</span>
+        <button id="close-watch-together-playlist-btn" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+      </div>
+      <div class="modal-body" style="padding: 15px; overflow-y: auto;">
+        <div id="watch-together-playlist-list" style="display: flex; flex-direction: column; gap: 10px;">
+          <p style="text-align: center; color: #999; padding: 40px;">暂无视频，上传视频后可保存到列表</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="cancel" id="cancel-watch-together-playlist-btn">关闭</button>
+      </div>
+    </div>
+  </div>
+  <div id="watch-together-save-video-modal" class="modal" style="z-index: 10002;">
+    <div class="modal-content" style="width: 400px; height: auto;">
+      <div class="modal-header">
+        <span>保存视频到播放列表</span>
+      </div>
+      <div class="modal-body" style="padding: 20px;">
+        <div class="form-group">
+          <label style="display: block; margin-bottom: 8px; font-size: 14px; color: #333;">视频名称</label>
+          <input type="text" id="watch-together-video-name-input" placeholder="输入视频名称..." style="width: 100%; padding: 10px; border: 1px solid #d0d0d0; border-radius: 4px; font-size: 14px;">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="cancel" id="cancel-save-video-btn">取消</button>
+        <button class="save" id="confirm-save-video-btn">保存</button>
       </div>
     </div>
   </div>
@@ -6142,6 +6175,158 @@
         </div>
       </div>
     </div>
+
+<!-- ▼▼▼ 你画我猜功能 ▼▼▼ -->
+<div id="draw-guess-screen" class="screen">
+    <div class="header">
+        <span class="back-btn" onclick="showScreen('home-screen')">‹</span>
+        <span>你画我猜</span>
+        <div style="display: flex; gap: 10px;">
+            <span class="action-btn" id="draw-guess-settings-btn">设置</span>
+            <span class="action-btn" id="draw-guess-select-char-btn">选择</span>
+        </div>
+    </div>
+
+    <div class="list-container" id="draw-guess-content">
+        <!-- 游戏交互区域 -->
+        <div id="draw-guess-interactive-area" style="display: none;">
+            <div class="player-avatars-container">
+                <div class="player-info">
+                    <img id="draw-guess-user-avatar" src="" class="player-avatar">
+                    <span id="draw-guess-user-name" class="player-name"></span>
+                </div>
+                <div class="player-info">
+                    <img id="draw-guess-char-avatar" src="" class="player-avatar">
+                    <span id="draw-guess-char-name" class="player-name"></span>
+                </div>
+            </div>
+            <div id="draw-guess-dialogue-box"></div>
+            <div class="draw-guess-input-area">
+                <div id="draw-guess-action-bar" style="display:none;">
+                    <button class="action-bar-btn" data-action="reply">回复</button>
+                    <button class="action-bar-btn" data-action="delete">删除</button>
+                    <button class="action-bar-btn" data-action="edit">编辑</button>
+                    <button class="action-bar-btn" data-action="resay">重说</button>
+                </div>
+                <div class="draw-guess-input-row">
+                    <input type="text" id="draw-guess-input" placeholder="输入你的猜测或对话...">
+                    <button id="draw-guess-send-btn">发送</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="draw-guess-main-area">
+            <p id="draw-guess-welcome-text">请先点击右上角"选择"按钮<br>邀请一位伙伴来玩吧！</p>
+
+            <div id="draw-guess-studio" style="display: none;">
+                <canvas id="drawing-canvas"></canvas>
+            
+                <div id="draw-guess-tool-bar">
+                    <div class="drawing-tools left">
+                        <div class="color-palette">
+                            <div class="color-dot active" style="background-color: #000000;" data-color="#000000"></div>
+                            <div class="color-dot" style="background-color: #ff3b30;" data-color="#ff3b30"></div>
+                            <div class="color-dot" style="background-color: #ff9500;" data-color="#ff9500"></div>
+                            <div class="color-dot" style="background-color: #ffcc00;" data-color="#ffcc00"></div>
+                            <div class="color-dot" style="background-color: #4cd964;" data-color="#4cd964"></div>
+                            <div class="color-dot" style="background-color: #007aff;" data-color="#007aff"></div>
+                            <div class="color-dot" style="background-color: #5856d6;" data-color="#5856d6"></div>
+                            <div class="color-dot" style="background-color: #af52de;" data-color="#af52de"></div>
+                            <div class="color-dot" style="background-color: #ffffff; border: 1px solid #ddd;" data-color="#ffffff"></div>
+                        </div>
+                        <div id="custom-color-picker-container" class="custom-color-picker">
+                            <input type="color" id="custom-color-input" value="#000000">
+                        </div>
+                        <div class="tool-buttons">
+                            <button class="tool-btn active" data-tool="pen">笔</button>
+                            <button class="tool-btn" data-tool="eraser">橡皮</button>
+                            <button class="tool-btn" data-tool="undo">撤回</button>
+                            <button id="clear-canvas-btn" class="tool-btn" data-tool="clear">清空</button>
+                        </div>
+                    </div>
+            
+                    <div id="brush-settings" style="display: none; width: 100%; max-width: 150px;">
+                        <div id="pen-settings">
+                            <label for="pen-type-select">类型</label>
+                            <select id="pen-type-select">
+                                <option value="pen">钢笔</option>
+                                <option value="pencil">铅笔</option>
+                                <option value="watercolor">水笔</option>
+                                <option value="brush">画笔</option>
+                                <option value="calligraphy">毛笔</option>
+                            </select>
+                        </div>
+                        <div class="size-control">
+                            <label for="brush-size-slider">大小</label>
+                            <input type="range" id="brush-size-slider" min="1" max="50" value="5">
+                            <input type="number" id="brush-size-input" min="1" value="5">
+                        </div>
+                    </div>
+                    
+                    <div class="game-controls-group">
+                        <button class="game-control-btn" id="draw-guess-get-topic-btn">AI出题</button>
+                        <button class="game-control-btn" id="draw-guess-ai-turn-btn">轮到他了</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="draw-guess-bottom-bar" style="display: none;">
+            <button id="start-draw-guess-game-btn" class="form-button">开始游戏</button>
+        </div>
+    </div>
+</div>
+
+<div id="draw-guess-message-manager-modal" class="modal">
+    <div class="modal-content" style="height: 70%;">
+        <div class="modal-header">
+            <span id="draw-guess-manager-title">管理消息</span>
+            <label style="font-size: 14px; font-weight: normal; display: flex; align-items: center; gap: 5px;">
+                <input type="checkbox" id="draw-guess-manager-select-all"> 全选
+            </label>
+        </div>
+        <div class="modal-body" id="draw-guess-manager-list" style="padding: 0;"></div>
+        <div class="modal-footer">
+            <button class="cancel" id="draw-guess-manager-cancel-btn">取消</button>
+            <button class="save" id="draw-guess-manager-confirm-btn">确认</button>
+        </div>
+    </div>
+</div>
+
+<!-- 你画我猜设置弹窗 -->
+<div id="draw-guess-settings-modal" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <span>游戏模式设置</span>
+        </div>
+        <div class="modal-body">
+            <div class="setting-item">
+                <label style="font-weight: 500; margin-bottom: 8px; display: block;">选择游戏模式</label>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-primary);">
+                        <input type="radio" name="draw-guess-mode" value="online" id="draw-guess-mode-online" checked>
+                        <div>
+                            <div style="font-weight: 500;">线上模式</div>
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">模拟线上聊天，角色可发多条简短消息</div>
+                        </div>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-primary);">
+                        <input type="radio" name="draw-guess-mode" value="offline" id="draw-guess-mode-offline">
+                        <div>
+                            <div style="font-weight: 500;">线下模式</div>
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">模拟面对面场景，包含动作和场景描写</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="cancel" id="draw-guess-settings-cancel-btn">取消</button>
+            <button class="save" id="draw-guess-settings-save-btn">保存</button>
+        </div>
+    </div>
+</div>
+<!-- ▲▲▲ 你画我猜HTML结束 ▲▲▲ -->
 
 </body>
 </html>

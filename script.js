@@ -2733,6 +2733,18 @@ let selectedQuickReplies = new Set();
 
   let gomokuState = {};
   let readingState = {};
+  let drawGuessState = {
+    isActive: false,
+    partnerId: null,
+    history: [],
+    isAiResponding: false,
+    mode: 'online', // 'online' 或 'offline'，默认线上模式
+    messageManager: {
+      isOpen: false,
+      mode: null,
+      selectedTimestamps: new Set()
+    }
+  };
   let originalChatMessagesPaddingTop = null;
 
 
@@ -2757,7 +2769,12 @@ let selectedQuickReplies = new Set();
     'alipay': 'https://i.postimg.cc/Hs7BLh76/alipay.png',
     'auction': 'https://i.postimg.cc/Hs7BLh76/alipay.png',
      'green-river': 'https://i.postimg.cc/0j55Pj1L/green-river-icon.png',
-    'mail': 'https://i.postimg.cc/PfR7f37x/mail.png'
+    'mail': 'https://i.postimg.cc/PfR7f37x/mail.png',
+
+    // 第三页的APP
+    'myphone': 'https://i.postimg.cc/MTC3Tkw8/IMG-6436.jpg',
+    'draw-guess': 'https://i.postimg.cc/k5dG3B4p/draw-guess-icon.png',
+    'char-generator': 'https://i.postimg.cc/nzGYM8qb/character-gen.jpg'
   };
 
 
@@ -3828,17 +3845,13 @@ function showChoiceModal(title, options) {
           comment: '从旧版本迁移的条目',
           content: book.content
         }];
-      } else if (!Array.isArray(book.content)) {
-        book.content = [];
       }
-
-
-      book.content.forEach(entry => {
-        if (typeof entry.enabled === 'undefined') {
-          entry.enabled = true;
-        }
-      });
     });
+  });
+
+  // 观影播放列表
+  db.version(52).stores({
+    watchTogetherPlaylist: '++id, name, timestamp'
   });
 
   window.db = db;
@@ -4897,7 +4910,26 @@ function showChoiceModal(title, options) {
         presets,
         presetCategories,
 
-        npcs
+        npcs,
+
+        // 新增的表
+        stickerVisionCache,
+        shoppingCategories,
+        customAvatarFrames,
+        readingLibrary,
+        quickReplies,
+        quickReplyCategories,
+        npcGroups,
+        naiPresets,
+        grAuthors,
+        grStories,
+        userWallet,
+        userTransactions,
+        funds,
+        auctions,
+        inventory,
+        emails,
+        watchTogetherPlaylist
       ] = await Promise.all([
         db.chats.toArray(),
         db.worldBooks.toArray(),
@@ -4927,7 +4959,26 @@ function showChoiceModal(title, options) {
         db.presets.toArray(),
         db.presetCategories.toArray(),
 
-        db.npcs.toArray()
+        db.npcs.toArray(),
+
+        // 新增的表
+        db.stickerVisionCache.toArray(),
+        db.shoppingCategories.toArray(),
+        db.customAvatarFrames.toArray(),
+        db.readingLibrary.toArray(),
+        db.quickReplies.toArray(),
+        db.quickReplyCategories.toArray(),
+        db.npcGroups.toArray(),
+        db.naiPresets.toArray(),
+        db.grAuthors.toArray(),
+        db.grStories.toArray(),
+        db.userWallet.get('main'),
+        db.userTransactions.toArray(),
+        db.funds.toArray(),
+        db.auctions.toArray(),
+        db.inventory.toArray(),
+        db.emails.toArray(),
+        db.watchTogetherPlaylist.toArray()
       ]);
 
       Object.assign(backupData, {
@@ -4959,7 +5010,26 @@ function showChoiceModal(title, options) {
         presets,
         presetCategories,
 
-        npcs
+        npcs,
+
+        // 新增的表
+        stickerVisionCache,
+        shoppingCategories,
+        customAvatarFrames,
+        readingLibrary,
+        quickReplies,
+        quickReplyCategories,
+        npcGroups,
+        naiPresets,
+        grAuthors,
+        grStories,
+        userWallet,
+        userTransactions,
+        funds,
+        auctions,
+        inventory,
+        emails,
+        watchTogetherPlaylist
       });
 
       const blob = new Blob(
@@ -5074,14 +5144,33 @@ function showChoiceModal(title, options) {
       'qzoneSettings': '空间设置',
       'qzonePosts': '动态',
       'qzoneAlbums': '相册',
+      'qzonePhotos': '相册照片',
       'favorites': '收藏',
+      'qzoneGroups': '空间分组',
       'memories': '回忆',
       'callRecords': '通话记录',
       'shoppingProducts': '商品',
+      'shoppingCategories': '商品分类',
       'apiPresets': 'API预设',
       'renderingRules': '渲染规则',
       'appearancePresets': '外观预设',
-      'npcs': 'NPCs'
+      'npcs': 'NPCs',
+      'npcGroups': 'NPC分组',
+      'doubanPosts': '豆瓣动态',
+      'stickerVisionCache': '表情缓存',
+      'readingLibrary': '阅读库',
+      'quickReplies': '快捷回复',
+      'quickReplyCategories': '快捷回复分类',
+      'naiPresets': 'NAI预设',
+      'grAuthors': '故事作者',
+      'grStories': '故事',
+      'userWallet': '用户钱包',
+      'userTransactions': '交易记录',
+      'funds': '基金',
+      'auctions': '拍卖记录',
+      'inventory': '物品清单',
+      'emails': '邮件',
+      'watchTogetherPlaylist': '观影播放列表'
     };
 
     let foundData = false;
@@ -5203,14 +5292,33 @@ function showChoiceModal(title, options) {
       'qzoneSettings': '空间设置',
       'qzonePosts': '动态',
       'qzoneAlbums': '相册',
+      'qzonePhotos': '相册照片',
+      'qzoneGroups': '空间分组',
       'favorites': '收藏',
       'memories': '回忆',
       'callRecords': '通话记录',
       'shoppingProducts': '商品',
+      'shoppingCategories': '商品分类',
       'apiPresets': 'API预设',
       'renderingRules': '渲染规则',
       'appearancePresets': '外观预设',
-      'npcs': 'NPCs'
+      'npcs': 'NPCs',
+      'npcGroups': 'NPC分组',
+      'doubanPosts': '豆瓣动态',
+      'stickerVisionCache': '表情缓存',
+      'readingLibrary': '阅读库',
+      'quickReplies': '快捷回复',
+      'quickReplyCategories': '快捷回复分类',
+      'naiPresets': 'NAI预设',
+      'grAuthors': '故事作者',
+      'grStories': '故事',
+      'userWallet': '用户钱包',
+      'userTransactions': '交易记录',
+      'funds': '基金',
+      'auctions': '拍卖记录',
+      'inventory': '物品清单',
+      'emails': '邮件',
+      'watchTogetherPlaylist': '观影播放列表'
     };
 
     let hasContent = false;
@@ -5320,7 +5428,7 @@ function showChoiceModal(title, options) {
           
             if (existingData.id) {
               mergedData.id = existingData.id;
-            } else if (type === 'apiConfig' || type === 'qzoneSettings' || type === 'globalSettings' || type === 'musicLibrary') {
+            } else if (type === 'apiConfig' || type === 'qzoneSettings' || type === 'globalSettings' || type === 'musicLibrary' || type === 'userWallet') {
               mergedData.id = 'main';
             }
 
@@ -5378,6 +5486,25 @@ function showChoiceModal(title, options) {
         if (Array.isArray(backupData.presets)) await db.presets.bulkPut(backupData.presets);
         if (Array.isArray(backupData.presetCategories)) await db.presetCategories.bulkPut(backupData.presetCategories);
         if (Array.isArray(backupData.npcs)) await db.npcs.bulkPut(backupData.npcs);
+
+        // 新增的表
+        if (Array.isArray(backupData.stickerVisionCache)) await db.stickerVisionCache.bulkPut(backupData.stickerVisionCache);
+        if (Array.isArray(backupData.shoppingCategories)) await db.shoppingCategories.bulkPut(backupData.shoppingCategories);
+        if (Array.isArray(backupData.customAvatarFrames)) await db.customAvatarFrames.bulkPut(backupData.customAvatarFrames);
+        if (Array.isArray(backupData.readingLibrary)) await db.readingLibrary.bulkPut(backupData.readingLibrary);
+        if (Array.isArray(backupData.quickReplies)) await db.quickReplies.bulkPut(backupData.quickReplies);
+        if (Array.isArray(backupData.quickReplyCategories)) await db.quickReplyCategories.bulkPut(backupData.quickReplyCategories);
+        if (Array.isArray(backupData.npcGroups)) await db.npcGroups.bulkPut(backupData.npcGroups);
+        if (Array.isArray(backupData.naiPresets)) await db.naiPresets.bulkPut(backupData.naiPresets);
+        if (Array.isArray(backupData.grAuthors)) await db.grAuthors.bulkPut(backupData.grAuthors);
+        if (Array.isArray(backupData.grStories)) await db.grStories.bulkPut(backupData.grStories);
+        if (backupData.userWallet) await db.userWallet.put(backupData.userWallet);
+        if (Array.isArray(backupData.userTransactions)) await db.userTransactions.bulkPut(backupData.userTransactions);
+        if (Array.isArray(backupData.funds)) await db.funds.bulkPut(backupData.funds);
+        if (Array.isArray(backupData.auctions)) await db.auctions.bulkPut(backupData.auctions);
+        if (Array.isArray(backupData.inventory)) await db.inventory.bulkPut(backupData.inventory);
+        if (Array.isArray(backupData.emails)) await db.emails.bulkPut(backupData.emails);
+        if (Array.isArray(backupData.watchTogetherPlaylist)) await db.watchTogetherPlaylist.bulkPut(backupData.watchTogetherPlaylist);
       });
     } catch (error) {
       throw new Error(`旧版备份数据写入数据库失败: ${error.message}`);
@@ -5503,11 +5630,6 @@ function showChoiceModal(title, options) {
           customSoundUrl: ''
         }
       },
-      promptSettings: {
-        customEnabled: false,
-        customMode: 'append',  // 'append' | 'override'
-        customPrompt: ''
-      }
     };
     state.globalSettings = {
       ...defaultGlobalSettings,
@@ -7217,13 +7339,6 @@ async function saveNaiBinding() {
     document.getElementById('global-enable-thoughts-switch').checked = state.globalSettings.enableThoughts || false;
     document.getElementById('global-enable-qzone-actions-switch').checked = state.globalSettings.enableQzoneActions || false;
     document.getElementById('global-enable-view-myphone-switch').checked = state.globalSettings.enableViewMyPhone || false;
-    
-    // 新增：读取提示词设置
-    const promptSettings = state.globalSettings.promptSettings || { customEnabled: false, customMode: 'append', customPrompt: '' };
-    document.getElementById('custom-prompt-enabled-switch').checked = promptSettings.customEnabled;
-    document.getElementById('custom-prompt-mode-select').value = promptSettings.customMode;
-    document.getElementById('custom-prompt-textarea').value = promptSettings.customPrompt;
-    document.getElementById('custom-prompt-details').style.display = promptSettings.customEnabled ? 'block' : 'none';
     
     document.getElementById('chat-render-window-input').value = state.globalSettings.chatRenderWindow || 50;
     document.getElementById('chat-list-render-window-input').value = state.globalSettings.chatListRenderWindow || 30;
@@ -9530,7 +9645,7 @@ https://xx.com/4.jpg 疑惑`;
               // 进入手动创建流程
               const remarkName = await showCustomPrompt(
                 `创建角色 [${i + 1}/${normalFiles.length}] (第1/2步)`, 
-                `文件: ${file.name}\n\n请输入你想为Ta设置的【备注名】(例如: 哥哥)`
+                `文件: ${file.name}\n\n请输入你想为Ta设置的【备注名】`
               );
               if (!remarkName || !remarkName.trim()) {
                   skippedCount++;
@@ -9539,7 +9654,7 @@ https://xx.com/4.jpg 疑惑`;
 
               const originalName = await showCustomPrompt(
                 `创建角色 [${i + 1}/${normalFiles.length}] (第2/2步)`, 
-                `文件: ${file.name}\n\n请输入Ta的【本名】(例如: 李星辰，这个名字将用于AI识别)`
+                `文件: ${file.name}\n\n请输入Ta的【本名】`
               );
               if (!originalName || !originalName.trim()) {
                   skippedCount++;
@@ -9793,7 +9908,7 @@ https://xx.com/4.jpg 疑惑`;
           // 创建角色流程
           const remarkName = await showCustomPrompt(
             `创建角色 [${i + 1}/${selectedFiles.length}] (第1/2步)`,
-            `文件: ${entry.filename}\n\n请输入你想为Ta设置的【备注名】(例如: 哥哥)`
+            `文件: ${entry.filename}\n\n请输入你想为Ta设置的【备注名】`
           );
           
           if (!remarkName || !remarkName.trim()) {
@@ -9803,7 +9918,7 @@ https://xx.com/4.jpg 疑惑`;
           
           const originalName = await showCustomPrompt(
             `创建角色 [${i + 1}/${selectedFiles.length}] (第2/2步)`,
-            `文件: ${entry.filename}\n\n请输入Ta的【本名】(例如: 李星辰，这个名字将用于AI识别)`
+            `文件: ${entry.filename}\n\n请输入Ta的【本名】`
           );
           
           if (!originalName || !originalName.trim()) {
@@ -18276,7 +18391,7 @@ if (kinshipCard) {
 }
     const systemPrompt = `
         # 你的任务
-        你现在扮演一个名为"${chat.name}"的角色（你的本名是"${chat.originalName}"）。你已经有一段时间没有和用户（${userNickname}）互动了，现在你有机会【主动】做点什么，来表现你的个性和独立生活。这是一个秘密的、后台的独立行动。
+        你正在扮演角色"${chat.originalName}"（你的本名）。你已经有一段时间没有和用户（${userNickname}）互动了，现在你有机会【主动】做点什么，来表现你的个性和独立生活。这是一个秘密的、后台的独立行动。
 
 
      
@@ -23542,6 +23657,14 @@ async function handlePacketClick(timestamp) {
 
  
   function applyCPhoneAppIcons() {
+    // 先保存所有 CPhone 应用图标的默认 src（如果还没保存的话）
+    const iconElements = document.querySelectorAll('[id^="cphone-icon-img-"]');
+    iconElements.forEach(img => {
+      if (!img.dataset.defaultSrc) {
+        img.dataset.defaultSrc = img.src;
+      }
+    });
+
     if (!state.globalSettings.cphoneAppIcons) return;
 
     for (const iconId in state.globalSettings.cphoneAppIcons) {
@@ -23553,6 +23676,14 @@ async function handlePacketClick(timestamp) {
   }
 
   function applyMyPhoneAppIconsGlobal() {
+    // 先保存所有 MyPhone 应用图标的默认 src（如果还没保存的话）
+    const iconElements = document.querySelectorAll('[id^="myphone-icon-img-"]');
+    iconElements.forEach(img => {
+      if (!img.dataset.defaultSrc) {
+        img.dataset.defaultSrc = img.src;
+      }
+    });
+
     if (!state.globalSettings.myphoneAppIcons) return;
 
     for (const iconId in state.globalSettings.myphoneAppIcons) {
@@ -23581,7 +23712,8 @@ async function handlePacketClick(timestamp) {
       'music': '网易云',
       'bilibili': '哔哩哔哩',
       'reddit': 'Reddit',
-      'ephone': 'Ephone'
+      'ephone': 'Ephone',
+      'settings': '设置'
     };
 
     for (const iconId in state.globalSettings.cphoneAppIcons) {
@@ -23640,6 +23772,14 @@ async function handlePacketClick(timestamp) {
 
 
   function applyAppIcons() {
+    // 先保存所有应用图标的默认 src（如果还没保存的话）
+    const iconElements = document.querySelectorAll('[id^="icon-img-"]');
+    iconElements.forEach(img => {
+      if (!img.dataset.defaultSrc) {
+        img.dataset.defaultSrc = img.src;
+      }
+    });
+
     if (!state.globalSettings.appIcons) return;
 
     for (const iconId in state.globalSettings.appIcons) {
@@ -23675,7 +23815,12 @@ async function handlePacketClick(timestamp) {
        'alipay': '支付宝',
        'auction': '黑市拍卖',
         'green-river': '绿江',
-      'mail': '邮箱'
+      'mail': '邮箱',
+
+      // 第三页的APP
+      'myphone': 'Myphone',
+      'draw-guess': '你画我猜',
+      'char-generator': '角色生成'
     };
 
 
@@ -30569,51 +30714,8 @@ ${chat.settings.myPersona}
    * @returns {string} - 处理后的提示词
    */
   function processPromptWithSettings(originalPrompt, chatType = 'single') {
-    const settings = state.globalSettings.promptSettings || { customEnabled: false };
-    
     // 使用原始提示词
-    let processedPrompt = originalPrompt;
-    
-    // 应用自定义提示词
-    if (settings.customEnabled && settings.customPrompt && settings.customPrompt.trim()) {
-      const customContent = settings.customPrompt.trim();
-      
-      if (settings.customMode === 'append') {
-        // 追加模式：在核心规则后、指令列表前添加
-        const instructionMarker = '# 可用指令列表';
-        const insertIndex = processedPrompt.indexOf(instructionMarker);
-        
-        if (insertIndex !== -1) {
-          const before = processedPrompt.substring(0, insertIndex);
-          const after = processedPrompt.substring(insertIndex);
-          processedPrompt = `${before}\n# 自定义规则\n${customContent}\n\n${after}`;
-        } else {
-          // 如果找不到标记，就添加到末尾
-          processedPrompt = `${processedPrompt}\n\n# 自定义规则\n${customContent}`;
-        }
-      } else if (settings.customMode === 'override') {
-        // 覆盖模式：替换核心规则部分，保留指令列表
-        const instructionMarker = '# 可用指令列表';
-        const insertIndex = processedPrompt.indexOf(instructionMarker);
-        
-        if (insertIndex !== -1) {
-          const header = processedPrompt.substring(0, processedPrompt.indexOf('# 角色扮演核心规则'));
-          const instructions = processedPrompt.substring(insertIndex);
-          processedPrompt = `${header}\n# 自定义核心规则\n${customContent}\n\n${instructions}`;
-        } else {
-          // 如果找不到标记，完全替换（保留第一段身份信息）
-          const identityEnd = processedPrompt.indexOf('\n\n', processedPrompt.indexOf('# 身份'));
-          if (identityEnd !== -1) {
-            const identity = processedPrompt.substring(0, identityEnd);
-            processedPrompt = `${identity}\n\n# 自定义核心规则\n${customContent}`;
-          } else {
-            processedPrompt = customContent;
-          }
-        }
-      }
-    }
-    
-    return processedPrompt;
+    return originalPrompt;
   }
   
   // ========== 提示词处理函数结束 ==========
@@ -31330,6 +31432,14 @@ ${chat.settings.myPersona}
 
 
   function applyWidgetData() {
+    // 先保存所有可编辑图片的默认 src（如果还没保存的话）
+    const editableImages = document.querySelectorAll('.editable-image');
+    editableImages.forEach(img => {
+      if (!img.dataset.defaultSrc) {
+        img.dataset.defaultSrc = img.src;
+      }
+    });
+
     if (!state.globalSettings.widgetData) return;
     for (const elementId in state.globalSettings.widgetData) {
       const element = document.getElementById(elementId);
@@ -31409,9 +31519,30 @@ ${chat.settings.myPersona}
   
     const choice = await showChoiceModal("修改图片", [
         { text: '📁 从本地上传', value: 'local' },
-        { text: '🌐 使用网络URL', value: 'url' }
+        { text: '🌐 使用网络URL', value: 'url' },
+        { text: '🔄 重置为默认', value: 'reset' }
     ]);
   
+    // 处理重置逻辑
+    if (choice === 'reset') {
+        const defaultSrc = element.dataset.defaultSrc;
+        if (defaultSrc) {
+            // 恢复到默认图片
+            element.src = defaultSrc;
+            
+            // 从数据库中删除该记录
+            if (state.globalSettings.widgetData && state.globalSettings.widgetData[elementId]) {
+                delete state.globalSettings.widgetData[elementId];
+                await db.globalSettings.put(state.globalSettings);
+            }
+            
+            await showCustomAlert("成功", "已重置为默认图片！");
+        } else {
+            await showCustomAlert("提示", "未找到默认图片，无法重置。");
+        }
+        return;
+    }
+
     let newUrl = null;
     let isBase64 = false; // 标记是否为 Base64
   
@@ -34452,6 +34583,14 @@ window.toggleReadingFullscreen = toggleReadingFullscreen;
   }
 
   function applyMyPhoneAppIcons() {
+    // 先保存所有 MyPhone 应用图标的默认 src（如果还没保存的话）
+    const iconElements = document.querySelectorAll('[id^="myphone-icon-img-"]');
+    iconElements.forEach(img => {
+      if (!img.dataset.defaultSrc) {
+        img.dataset.defaultSrc = img.src;
+      }
+    });
+
     if (!state.globalSettings.myphoneAppIcons) return;
 
     for (const iconId in state.globalSettings.myphoneAppIcons) {
@@ -34549,6 +34688,11 @@ window.toggleReadingFullscreen = toggleReadingFullscreen;
 
     renderCharHomeScreen();
     showScreen('character-phone-screen');
+    
+    // 初始化 CPhone 翻页功能
+    setTimeout(() => {
+      setupCPhonePagination();
+    }, 100);
   }
 
 
@@ -34631,6 +34775,97 @@ window.editBubbleText = async function(elementId) {
 
 
 
+  // 记录角色手机查看行为 - 单个项目版本
+  async function logSingleItemViewing(characterId, appName, itemData, itemType = '') {
+    const char = state.chats[characterId];
+    if (!char || char.isGroup) return;
+    
+    // 检查角色是否开启了"知晓窥屏"功能
+    if (!char.settings.phoneViewingAwareness) return;
+    
+    // 如果没有数据，不记录
+    if (!itemData) {
+      console.log(`[窥屏记录] ${char.name}: ${appName} 没有数据，不发送通知`);
+      return;
+    }
+    
+    const now = new Date();
+    const timeStr = now.toLocaleString('zh-CN', { 
+      year: 'numeric', 
+      month: '2-digit', 
+      day: '2-digit',
+      hour: '2-digit', 
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false 
+    });
+    
+    const appNameMap = {
+      'qq': 'QQ',
+      'album': '相册',
+      'browser': '浏览器',
+      'taobao': '淘宝',
+      'memo': '备忘录',
+      'diary': '日记',
+      'amap': '高德地图',
+      'usage': 'APP使用记录',
+      'music': '网易云音乐',
+      'bilibili': '哔哩哔哩',
+      'reddit': 'Reddit'
+    };
+    
+    let systemMessage = `[系统通知] ${timeStr}\n用户打开了你的手机，并且点开了${appNameMap[appName] || appName} APP`;
+    
+    // 根据不同类型构建详细内容
+    let detailContent = '';
+    
+    if (appName === 'diary') {
+      const dateStr = itemData.timestamp ? new Date(itemData.timestamp).toLocaleDateString('zh-CN') : '';
+      systemMessage += `查看了你的日记`;
+      detailContent = `\n\n【日记标题】${itemData.title || '无标题'}\n【日期】${dateStr}\n【内容】\n${itemData.content || '(空白)'}`;
+    } else if (appName === 'memo') {
+      systemMessage += `查看了你的备忘录`;
+      detailContent = `\n\n【备忘录标题】${itemData.title || '无标题'}\n【内容】\n${itemData.content || '(空白)'}`;
+    } else if (appName === 'album') {
+      systemMessage += `查看了你的照片`;
+      detailContent = `\n\n【照片描述】\n${itemData.description || itemData.caption || '(这张照片没有描述)'}`;
+    } else if (appName === 'browser') {
+      systemMessage += `查看了你的浏览历史`;
+      detailContent = `\n\n【标题】${itemData.title || '无标题'}\n【网址】${itemData.url || ''}\n【内容】${itemData.content || '(无内容)'}`;
+    } else if (appName === 'taobao') {
+      systemMessage += `查看了你的购物记录`;
+      detailContent = `\n\n【商品】${itemData.name || ''}\n【价格】${itemData.price ? '¥' + itemData.price : '未知'}\n【描述】${itemData.description || ''}`;
+    } else if (appName === 'amap') {
+      systemMessage += `查看了你的地图足迹`;
+      detailContent = `\n\n【位置】${itemData.location || ''}\n【时间】${itemData.time || ''}\n【详情】${itemData.details || ''}`;
+    } else if (appName === 'music') {
+      systemMessage += `查看了你的音乐`;
+      detailContent = `\n\n【歌曲】${itemData.title || ''}\n【艺术家】${itemData.artist || ''}\n【专辑】${itemData.album || ''}`;
+    } else if (appName === 'bilibili') {
+      systemMessage += `查看了你的B站观看历史`;
+      detailContent = `\n\n【标题】${itemData.title || ''}\n【UP主】${itemData.author || ''}\n【简介】${itemData.desc || ''}`;
+    } else if (appName === 'reddit') {
+      systemMessage += `查看了你的Reddit浏览内容`;
+      detailContent = `\n\n【标题】${itemData.title || ''}\n【内容】${itemData.content || ''}`;
+    }
+    
+    systemMessage += detailContent;
+    
+    // 添加为灰色系统消息和隐藏调试层
+    const viewingLog = {
+      role: 'system',
+      content: systemMessage,
+      timestamp: now.getTime(),
+      isHidden: true,
+      isGrayNotice: true
+    };
+    
+    char.history.push(viewingLog);
+    await db.chats.put(char);
+    
+    console.log(`[窥屏记录] ${char.name}: 查看了 ${appNameMap[appName]} - ${itemData.title || itemData.name || '某项内容'}`);
+  }
+
   async function openCharApp(appName) {
     if (!activeCharacterId) return;
     const char = state.chats[activeCharacterId];
@@ -34676,15 +34911,14 @@ window.editBubbleText = async function(elementId) {
         switchToCharScreen('char-music-screen');
         break;
       case 'bilibili':
-        
         document.getElementById('char-bilibili-search-input').value = '';
 
         renderCharBilibiliScreen(); 
         switchToCharScreen('char-bilibili-screen');
         break;
       case 'reddit':
-    // 默认加载热门内容
-    if (char.simulatedRedditFeed && char.simulatedRedditFeed.length > 0) {
+        // 默认加载热门内容
+        if (char.simulatedRedditFeed && char.simulatedRedditFeed.length > 0) {
             console.log("加载已保存的 Reddit 推荐流");
             renderRedditList(char.simulatedRedditFeed);
         } else {
@@ -34692,11 +34926,15 @@ window.editBubbleText = async function(elementId) {
             console.log("无缓存，加载默认热门内容");
             handleRedditSearch('popular'); 
         }
-    switchToCharScreen('char-reddit-screen');
-    break;
+        switchToCharScreen('char-reddit-screen');
+        break;
       case 'usage':
         renderCharAppUsage();
         switchToCharScreen('char-usage-screen');
+        break;
+      case 'settings':
+        // 设置 APP 占位，暂未实现
+        await showCustomAlert("提示", "设置功能即将推出，敬请期待！");
         break;
     }
   }
@@ -34722,6 +34960,10 @@ window.editBubbleText = async function(elementId) {
       item.className = 'char-photo-item';
       item.dataset.description = photo.description;
       gridEl.appendChild(item);
+      
+      // 添加点击事件，查看照片详情
+      item.style.cursor = 'pointer';
+      item.addEventListener('click', () => viewPhotoDetail(photo));
 
 
 
@@ -34757,6 +34999,18 @@ window.editBubbleText = async function(elementId) {
       }
 
     });
+  }
+  
+  // 查看照片详情（记录窥屏）
+  async function viewPhotoDetail(photo) {
+    if (!activeCharacterId) return;
+    
+    // 记录窥屏行为
+    await logSingleItemViewing(activeCharacterId, 'album', photo);
+    
+    // 显示照片详情
+    const description = photo.description || photo.caption || '这张照片没有描述';
+    await showCustomAlert('照片详情', description);
   }
 
 
@@ -34876,6 +35130,113 @@ window.editBubbleText = async function(elementId) {
 
   function switchToCharHomeScreen() {
     switchToCharScreen('char-home-screen');
+  }
+
+  // CPhone 翻页功能
+  let cphoneCurrentPage = 0;
+  const cphoneTotalPages = 2;
+
+  function setupCPhonePagination() {
+    const pagesContainer = document.getElementById('cphone-pages-container');
+    const pages = document.getElementById('cphone-pages');
+    const dots = document.querySelectorAll('.cphone-pagination-dot');
+    
+    if (!pagesContainer || !pages) return;
+
+    let startX = 0, startY = 0;
+    let currentX = 0;
+    let isDragging = false;
+    let isClick = true;
+
+    const updatePagination = () => {
+      pages.style.transform = `translateX(-${cphoneCurrentPage * (100 / cphoneTotalPages)}%)`;
+      dots.forEach((dot, index) => {
+        dot.classList.toggle('active', index === cphoneCurrentPage);
+      });
+    };
+
+    const onDragStart = (e) => {
+      isDragging = true;
+      isClick = true;
+      startX = e.type.includes('mouse') ? e.pageX : e.touches[0].pageX;
+      startY = e.type.includes('mouse') ? e.pageY : e.touches[0].pageY;
+      pages.style.transition = 'none';
+    };
+
+    const onDragMove = (e) => {
+      if (!isDragging) return;
+
+      const currentY = e.type.includes('mouse') ? e.pageY : e.touches[0].pageY;
+      currentX = e.type.includes('mouse') ? e.pageX : e.touches[0].pageX;
+      let diffX = currentX - startX;
+      const diffY = currentY - startY;
+
+      if (isClick && (Math.abs(diffX) > 10 || Math.abs(diffY) > 10)) {
+        isClick = false;
+      }
+
+      if (Math.abs(diffX) > Math.abs(diffY)) {
+        if (e.cancelable) e.preventDefault();
+        
+        const maxSwipeDistance = pagesContainer.offsetWidth * 0.8;
+        
+        if (diffX < 0 && cphoneCurrentPage >= cphoneTotalPages - 1) {
+          diffX = Math.max(diffX, -maxSwipeDistance * 0.3);
+        } else if (diffX < 0) {
+          diffX = Math.max(diffX, -maxSwipeDistance);
+        }
+        
+        if (diffX > 0 && cphoneCurrentPage <= 0) {
+          diffX = Math.min(diffX, maxSwipeDistance * 0.3);
+        } else if (diffX > 0) {
+          diffX = Math.min(diffX, maxSwipeDistance);
+        }
+        
+        pages.style.transform = `translateX(calc(-${cphoneCurrentPage * (100 / cphoneTotalPages)}% + ${diffX}px))`;
+      }
+    };
+
+    const onDragEnd = (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      pages.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+
+      if (isClick) {
+        updatePagination();
+        return;
+      }
+
+      const diffX = currentX - startX;
+      const swipeThreshold = pagesContainer.offsetWidth / 3;
+      
+      if (Math.abs(diffX) > swipeThreshold) {
+        if (diffX > 0 && cphoneCurrentPage > 0) {
+          cphoneCurrentPage--;
+        } else if (diffX < 0 && cphoneCurrentPage < cphoneTotalPages - 1) {
+          cphoneCurrentPage++;
+        }
+      }
+      updatePagination();
+    };
+
+    pagesContainer.addEventListener('mousedown', onDragStart);
+    pagesContainer.addEventListener('mousemove', onDragMove);
+    pagesContainer.addEventListener('mouseup', onDragEnd);
+    pagesContainer.addEventListener('mouseleave', onDragEnd);
+
+    pagesContainer.addEventListener('touchstart', onDragStart, { passive: false });
+    pagesContainer.addEventListener('touchmove', onDragMove, { passive: false });
+    pagesContainer.addEventListener('touchend', onDragEnd);
+
+    // 点击指示器切换页面
+    dots.forEach((dot, index) => {
+      dot.addEventListener('click', () => {
+        cphoneCurrentPage = index;
+        updatePagination();
+      });
+    });
+
+    updatePagination();
   }
 
 
@@ -35003,6 +35364,9 @@ window.editBubbleText = async function(elementId) {
       favBtn.classList.toggle('active', !!existingFavorite);
 
       switchToCharScreen('char-memo-detail-screen');
+      
+      // 记录窥屏行为
+      await logSingleItemViewing(activeCharacterId, 'memo', memo);
     }
   }
 
@@ -35478,6 +35842,9 @@ ${recentHistoryWithUser}
       favBtn.classList.toggle('active', !!existingFavorite);
 
       switchToCharScreen('char-diary-detail-screen');
+      
+      // 记录窥屏行为
+      await logSingleItemViewing(activeCharacterId, 'diary', entry);
     }
   }
 
@@ -41429,8 +41796,41 @@ async function exportAppearanceSettings() {
 
     const choice = await showChoiceModal(`更换“${appName}”图标`, [
         { text: '📁 从本地上传', value: 'local' },
-        { text: '🌐 使用网络URL', value: 'url' }
+        { text: '🌐 使用网络URL', value: 'url' },
+        { text: '🔄 重置为默认', value: 'reset' }
     ]);
+
+    // 处理重置逻辑
+    if (choice === 'reset') {
+        const iconElement = itemElement.querySelector('.icon-preview');
+        const defaultSrc = iconElement.dataset.defaultSrc;
+        
+        if (defaultSrc) {
+            // 恢复到默认图标
+            iconElement.src = defaultSrc;
+            
+            // 从对应的数据库对象中删除该记录
+            if (phoneType === 'cphone') {
+                if (state.globalSettings.cphoneAppIcons && state.globalSettings.cphoneAppIcons[iconId]) {
+                    delete state.globalSettings.cphoneAppIcons[iconId];
+                }
+            } else if (phoneType === 'myphone') {
+                if (state.globalSettings.myphoneAppIcons && state.globalSettings.myphoneAppIcons[iconId]) {
+                    delete state.globalSettings.myphoneAppIcons[iconId];
+                }
+            } else {
+                if (state.globalSettings.appIcons && state.globalSettings.appIcons[iconId]) {
+                    delete state.globalSettings.appIcons[iconId];
+                }
+            }
+            
+            await db.globalSettings.put(state.globalSettings);
+            await showCustomAlert("成功", "已重置为默认图标！");
+        } else {
+            await showCustomAlert("提示", "未找到默认图标，无法重置。");
+        }
+        return;
+    }
 
     let newUrl = null;
     let isBase64 = false;
@@ -45569,9 +45969,30 @@ ${recentHistoryContext}
   
     const choice = await showChoiceModal("更换图片", [
         { text: '📁 从本地上传', value: 'local' },
-        { text: '🌐 使用网络URL', value: 'url' }
+        { text: '🌐 使用网络URL', value: 'url' },
+        { text: '🔄 重置为默认', value: 'reset' }
     ]);
   
+    // 处理重置逻辑
+    if (choice === 'reset') {
+        const defaultSrc = element.dataset.defaultSrc;
+        if (defaultSrc) {
+            // 恢复到默认图片
+            element.src = defaultSrc;
+            
+            // 从数据库中删除该记录
+            if (state.globalSettings.widgetData && state.globalSettings.widgetData[imageId]) {
+                delete state.globalSettings.widgetData[imageId];
+                await db.globalSettings.put(state.globalSettings);
+            }
+            
+            await showCustomAlert("成功", "已重置为默认图片！");
+        } else {
+            await showCustomAlert("提示", "未找到默认图片，无法重置。");
+        }
+        return;
+    }
+
     let newUrl = null;
     let isBase64 = false; // 标记是否为 Base64
   
@@ -55726,10 +56147,10 @@ ${recentHistoryWithUser}
 
       if (choice === 'manual') {
 
-        const remarkName = await showCustomPrompt('创建新聊天 (第1/2步)', '请输入你想为Ta设置的【备注名】(例如: 哥哥)');
+        const remarkName = await showCustomPrompt('创建新聊天 (第1/2步)', '请输入你想为Ta设置的【备注名】');
         if (!remarkName || !remarkName.trim()) return;
 
-        const originalName = await showCustomPrompt('创建新聊天 (第2/2步)', '请输入Ta的【本名】(例如: 李星辰，这个名字将用于AI识别)');
+        const originalName = await showCustomPrompt('创建新聊天 (第2/2步)', '请输入Ta的【本名】');
         if (!originalName || !originalName.trim()) return;
 
 
@@ -56158,13 +56579,6 @@ ${recentHistoryWithUser}
       state.globalSettings.enableThoughts = document.getElementById('global-enable-thoughts-switch').checked;
       state.globalSettings.enableQzoneActions = document.getElementById('global-enable-qzone-actions-switch').checked;
       state.globalSettings.enableViewMyPhone = document.getElementById('global-enable-view-myphone-switch').checked;
-      
-      // 新增：保存提示词设置
-      state.globalSettings.promptSettings = {
-        customEnabled: document.getElementById('custom-prompt-enabled-switch').checked,
-        customMode: document.getElementById('custom-prompt-mode-select').value,
-        customPrompt: document.getElementById('custom-prompt-textarea').value
-      };
       
       state.globalSettings.chatRenderWindow = parseInt(document.getElementById('chat-render-window-input').value) || 50;
       state.globalSettings.chatListRenderWindow = parseInt(document.getElementById('chat-list-render-window-input').value) || 30;
@@ -57036,6 +57450,16 @@ if (isGroup) {
       document.getElementById('auto-memory-toggle').checked = chat.settings.enableAutoMemory || false;
       document.getElementById('auto-memory-interval').value = chat.settings.autoMemoryInterval || 20;
       document.getElementById('show-hidden-msg-toggle').checked = chat.settings.showHiddenMessages || false;
+      
+      // 加载并显示/隐藏角色知晓窥屏开关（仅单聊）
+      const phoneViewingAwarenessGroup = document.getElementById('phone-viewing-awareness-group');
+      if (!isGroup) {
+        phoneViewingAwarenessGroup.style.display = 'flex';
+        document.getElementById('phone-viewing-awareness-toggle').checked = chat.settings.phoneViewingAwareness || false;
+      } else {
+        phoneViewingAwarenessGroup.style.display = 'none';
+      }
+      
       setTimeout(() => {
         updateTokenCountDisplay(); 
 
@@ -57244,6 +57668,12 @@ if (isGroup) {
       chat.settings.enableAutoMemory = document.getElementById('auto-memory-toggle').checked;
       chat.settings.autoMemoryInterval = parseInt(document.getElementById('auto-memory-interval').value) || 20;
       chat.settings.showHiddenMessages = document.getElementById('show-hidden-msg-toggle').checked;
+      
+      // 保存角色知晓窥屏设置
+      if (!chat.isGroup) {
+        chat.settings.phoneViewingAwareness = document.getElementById('phone-viewing-awareness-toggle').checked;
+      }
+      
       chat.settings.enableTimePerception = document.getElementById('time-perception-toggle').checked;
       chat.settings.timeZone = document.getElementById('time-zone-select').value;
       chat.settings.lyricsPosition = {
@@ -60810,87 +61240,6 @@ if (isGroup) {
 
     });
 
-    // ========== 提示词定义相关事件 ==========
-    // 自定义提示词开关切换
-    document.getElementById('custom-prompt-enabled-switch').addEventListener('change', (e) => {
-      document.getElementById('custom-prompt-details').style.display = e.target.checked ? 'block' : 'none';
-    });
-
-    // 文件导入按钮
-    document.getElementById('import-prompt-btn').addEventListener('click', () => {
-      document.getElementById('import-prompt-file-input').click();
-    });
-
-    // 文件选择后的处理
-    document.getElementById('import-prompt-file-input').addEventListener('change', async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      try {
-        let content = '';
-        const fileName = file.name.toLowerCase();
-
-        if (fileName.endsWith('.txt')) {
-          content = await file.text();
-        } else if (fileName.endsWith('.json')) {
-          const jsonText = await file.text();
-          const jsonData = JSON.parse(jsonText);
-          // 如果是JSON，尝试提取content字段，否则转为字符串
-          content = jsonData.content || jsonData.prompt || JSON.stringify(jsonData, null, 2);
-        } else if (fileName.endsWith('.docx')) {
-          // 处理 DOCX 文件 (使用 mammoth.js)
-          if (typeof mammoth === 'undefined') {
-            throw new Error("未加载 mammoth.js 库，无法读取 Word 文档。");
-          }
-          const arrayBuffer = await file.arrayBuffer();
-          const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
-          content = result.value;
-          
-          if (!content || content.trim().length === 0) {
-            throw new Error("DOCX 文件内容为空");
-          }
-        } else {
-          throw new Error('不支持的文件格式');
-        }
-
-        // 填充到文本框
-        document.getElementById('custom-prompt-textarea').value = content;
-        await showCustomAlert('导入成功', `已从 ${file.name} 导入 ${content.length} 个字符`);
-      } catch (error) {
-        console.error('导入文件失败:', error);
-        await showCustomAlert('导入失败', error.message);
-      }
-
-      // 重置input，允许重复选择同一文件
-      e.target.value = '';
-    });
-
-    // 清空按钮
-    document.getElementById('clear-custom-prompt-btn').addEventListener('click', async () => {
-      const confirmed = await showCustomConfirm('确认清空', '确定要清空自定义提示词内容吗？');
-      if (confirmed) {
-        document.getElementById('custom-prompt-textarea').value = '';
-      }
-    });
-
-    // 预览按钮
-    document.getElementById('preview-prompt-btn').addEventListener('click', () => {
-      const customEnabled = document.getElementById('custom-prompt-enabled-switch').checked;
-      const customMode = document.getElementById('custom-prompt-mode-select').value;
-      const customPrompt = document.getElementById('custom-prompt-textarea').value;
-
-      // 生成预览内容
-      let preview = `【当前配置】\n`;
-      preview += `自定义提示词: ${customEnabled ? '已启用' : '未启用'}\n`;
-      if (customEnabled) {
-        preview += `自定义模式: ${customMode === 'append' ? '追加模式' : '覆盖模式'}\n`;
-        preview += `\n【自定义内容预览】\n${customPrompt || '(无)'}\n`;
-      }
-      preview += `\n💡 预览仅展示配置信息，实际效果需要在对话中体验。`;
-
-      showCustomAlert('提示词配置预览', preview, { customClass: 'preview-modal' });
-    });
-    // ========== 提示词定义事件结束 ==========
 
 
     document.getElementById('open-memory-screen-btn').addEventListener('click', openLongTermMemoryScreen);
@@ -63142,6 +63491,17 @@ if (isGroup) {
       messages: []
     };
 
+    // 辅助函数：更新真心话悬浮球红点状态
+    function updateTruthGameFloatIndicator() {
+      const modal = document.getElementById('truth-game-modal');
+      const indicator = document.getElementById('truth-game-float-indicator');
+      
+      // 如果对话框被最小化，显示红点
+      if (modal.classList.contains('minimized')) {
+        indicator.classList.add('active');
+      }
+    }
+
     document.getElementById('open-truth-game-btn').addEventListener('click', () => {
       if (!state.activeChatId) {
         alert('请先选择一个聊天对象！');
@@ -63196,15 +63556,59 @@ if (isGroup) {
       const chat = state.chats[state.activeChatId];
       
       const limit = parseInt(document.getElementById('truth-history-limit-input').value);
-      if (isNaN(limit) || limit < 1 || limit > 20) {
-        alert('请输入1-20之间的数字');
+      if (isNaN(limit) || limit < 1) {
+        alert('请输入大于等于1的数字');
         return;
+      }
+      
+      if (limit > 50) {
+        if (!confirm(`您设置了${limit}轮历史记录，这可能会消耗大量token。确定要继续吗？`)) {
+          return;
+        }
       }
       
       chat.settings.truthGameHistoryLimit = limit;
       await db.chats.put(chat);
       
       document.getElementById('truth-game-settings-modal').classList.remove('visible');
+    });
+
+    // 最小化真心话对话框
+    document.getElementById('minimize-truth-game-btn').addEventListener('click', () => {
+      const modal = document.getElementById('truth-game-modal');
+      const floatBall = document.getElementById('truth-game-float-ball');
+      const chat = state.chats[state.activeChatId];
+      
+      if (chat) {
+        const floatAvatar = document.getElementById('truth-game-float-avatar');
+        floatAvatar.src = chat.settings.aiAvatar || 'https://i.postimg.cc/y8xWzCqj/anime-boy.jpg';
+      }
+      
+      modal.classList.add('minimized');
+      modal.classList.remove('visible');
+      floatBall.style.display = 'block';
+      
+      // 如果AI正在回复，显示红点指示器
+      if (truthGameState.waitingForAI) {
+        document.getElementById('truth-game-float-indicator').classList.add('active');
+      }
+    });
+
+    // 点击悬浮球恢复对话框
+    document.getElementById('truth-game-float-ball').addEventListener('click', () => {
+      const modal = document.getElementById('truth-game-modal');
+      const floatBall = document.getElementById('truth-game-float-ball');
+      
+      floatBall.style.display = 'none';
+      modal.classList.remove('minimized');
+      modal.classList.add('visible');
+      
+      // 移除红点指示器
+      document.getElementById('truth-game-float-indicator').classList.remove('active');
+      
+      // 滚动到最新消息
+      const messagesContainer = document.getElementById('truth-game-messages');
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
     });
 
     document.getElementById('close-truth-game-btn').addEventListener('click', async () => {
@@ -63286,7 +63690,11 @@ if (isGroup) {
       // 恢复正常消息菜单的所有按钮
       restoreNormalMessageActions();
       
+      // 关闭对话框和悬浮球
       document.getElementById('truth-game-modal').classList.remove('visible');
+      document.getElementById('truth-game-modal').classList.remove('minimized');
+      document.getElementById('truth-game-float-ball').style.display = 'none';
+      document.getElementById('truth-game-float-indicator').classList.remove('active');
     });
 
     document.querySelectorAll('.truth-rps-btn').forEach(btn => {
@@ -63327,8 +63735,11 @@ if (isGroup) {
           addTruthGameMessage('system', `${chat.name}赢了！正在思考问题...`);
           document.getElementById('truth-rps-selector').style.display = 'none';
           truthGameState.waitingForAI = true;
+          updateTruthGameFloatIndicator();
+          
           await generateAITruthQuestion();
           truthGameState.waitingForAI = false;
+          updateTruthGameFloatIndicator();
         } else {
           addTruthGameMessage('system', '平局！点击"开始游戏"按钮重新开始。');
           truthGameState.winner = null;
@@ -63552,6 +63963,7 @@ if (isGroup) {
       if (!proxyUrl || !apiKey || !model) {
         await new Promise(resolve => setTimeout(resolve, 1000));
         addTruthGameMessage('assistant', '你最喜欢什么？');
+        updateTruthGameFloatIndicator();
         document.getElementById('truth-input').placeholder = '输入你的回答...';
         document.getElementById('truth-input').focus();
         return;
@@ -63597,11 +64009,13 @@ if (isGroup) {
           addTruthGameMessage('assistant', messages[i]);
         }
         
+        updateTruthGameFloatIndicator();
         document.getElementById('truth-input').placeholder = '输入你的回答...';
         document.getElementById('truth-input').focus();
       } catch (error) {
         console.error('生成问题失败:', error);
         addTruthGameMessage('assistant', '你最喜欢什么？');
+        updateTruthGameFloatIndicator();
         alert('真心话生成问题失败：' + error.message + '\n\n已使用默认问题，请检查API配置。');
         document.getElementById('truth-input').placeholder = '输入你的回答...';
         document.getElementById('truth-input').focus();
@@ -63613,12 +64027,14 @@ if (isGroup) {
       const { proxyUrl, apiKey, model } = state.apiConfig;
       
       addTruthGameMessage('system', '对方正在思考答案...');
+      updateTruthGameFloatIndicator();
       
       if (!proxyUrl || !apiKey || !model) {
         await new Promise(resolve => setTimeout(resolve, 1500));
         addTruthGameMessage('assistant', '我...我不知道该怎么回答。');
         await new Promise(resolve => setTimeout(resolve, 1000));
         addTruthGameMessage('system', '回答完毕！准备下一轮...');
+        updateTruthGameFloatIndicator();
         await new Promise(resolve => setTimeout(resolve, 1000));
         truthGameState.currentRound++;
         truthGameState.winner = null;
@@ -63670,6 +64086,7 @@ if (isGroup) {
         
         await new Promise(resolve => setTimeout(resolve, 1000));
         addTruthGameMessage('system', '回答完毕！准备下一轮...');
+        updateTruthGameFloatIndicator();
         await new Promise(resolve => setTimeout(resolve, 1000));
         truthGameState.currentRound++;
         truthGameState.winner = null;
@@ -63682,6 +64099,7 @@ if (isGroup) {
         alert('真心话生成回答失败：' + error.message + '\n\n已使用默认回答，请检查API配置。');
         await new Promise(resolve => setTimeout(resolve, 1000));
         addTruthGameMessage('system', '回答完毕！准备下一轮...');
+        updateTruthGameFloatIndicator();
         await new Promise(resolve => setTimeout(resolve, 1000));
         truthGameState.currentRound++;
         truthGameState.winner = null;
@@ -64292,6 +64710,29 @@ ${truthGameHistoryContext}
       });
     }
 
+    // 播放列表按钮
+    document.getElementById('watch-together-playlist-btn').addEventListener('click', () => {
+      openPlaylist();
+    });
+    
+    // 关闭播放列表
+    document.getElementById('close-watch-together-playlist-btn').addEventListener('click', () => {
+      document.getElementById('watch-together-playlist-modal').classList.remove('visible');
+    });
+    
+    document.getElementById('cancel-watch-together-playlist-btn').addEventListener('click', () => {
+      document.getElementById('watch-together-playlist-modal').classList.remove('visible');
+    });
+    
+    // 保存视频到播放列表
+    document.getElementById('confirm-save-video-btn').addEventListener('click', () => {
+      saveVideoToPlaylist();
+    });
+    
+    document.getElementById('cancel-save-video-btn').addEventListener('click', () => {
+      document.getElementById('watch-together-save-video-modal').classList.remove('visible');
+    });
+
     // 设置按钮
     document.getElementById('watch-together-settings-btn').addEventListener('click', () => {
       loadWatchTogetherSettings();
@@ -64348,7 +64789,7 @@ ${truthGameHistoryContext}
     });
 
     // 加载视频（本地文件）
-    function loadWatchTogetherVideo(file) {
+    function loadWatchTogetherVideo(file, skipSavePrompt = false) {
       const video = document.getElementById('watch-together-video');
       const placeholder = document.getElementById('watch-together-placeholder');
       
@@ -64359,14 +64800,25 @@ ${truthGameHistoryContext}
       
       watchTogetherState.videoUrl = url;
       
+      // 存储当前视频信息，用于保存到播放列表
+      watchTogetherState.currentVideoFile = file;
+      watchTogetherState.currentVideoUrl = null;
+      
       // 开始监听
       startWatchTogetherMonitoring();
       
       addWatchTogetherSystemMessage('视频已加载，开始观看');
+      
+      // 提示用户是否保存到播放列表
+      if (!skipSavePrompt) {
+        setTimeout(() => {
+          promptSaveVideoToPlaylist(file.name);
+        }, 1000);
+      }
     }
 
     // 加载视频（URL）
-    function loadWatchTogetherVideoFromUrl(url) {
+    function loadWatchTogetherVideoFromUrl(url, skipSavePrompt = false) {
       const video = document.getElementById('watch-together-video');
       const placeholder = document.getElementById('watch-together-placeholder');
       
@@ -64376,11 +64828,142 @@ ${truthGameHistoryContext}
       
       watchTogetherState.videoUrl = url;
       
+      // 存储当前视频信息，用于保存到播放列表
+      watchTogetherState.currentVideoFile = null;
+      watchTogetherState.currentVideoUrl = url;
+      
       // 开始监听
       startWatchTogetherMonitoring();
       
       addWatchTogetherSystemMessage('视频已加载，开始观看');
+      
+      // 提示用户是否保存到播放列表
+      if (!skipSavePrompt) {
+        setTimeout(() => {
+          const urlParts = url.split('/');
+          const fileName = urlParts[urlParts.length - 1] || '在线视频';
+          promptSaveVideoToPlaylist(fileName);
+        }, 1000);
+      }
     }
+
+    // ========== 播放列表功能 ==========
+    
+    // 提示保存视频到播放列表
+    async function promptSaveVideoToPlaylist(defaultName) {
+      const result = await showCustomConfirm('保存到播放列表', '是否将当前视频保存到播放列表？');
+      if (result) {
+        openSaveVideoModal(defaultName);
+      }
+    }
+    
+    // 打开保存视频对话框
+    function openSaveVideoModal(defaultName) {
+      const input = document.getElementById('watch-together-video-name-input');
+      input.value = defaultName.replace(/\.[^/.]+$/, ''); // 移除文件扩展名
+      document.getElementById('watch-together-save-video-modal').classList.add('visible');
+      input.focus();
+    }
+    
+    // 保存视频到播放列表
+    async function saveVideoToPlaylist() {
+      const name = document.getElementById('watch-together-video-name-input').value.trim();
+      if (!name) {
+        await showCustomAlert('提示', '请输入视频名称');
+        return;
+      }
+      
+      const videoData = {
+        name: name,
+        timestamp: Date.now()
+      };
+      
+      // 保存视频文件或URL
+      if (watchTogetherState.currentVideoFile) {
+        // 本地文件 - 转为base64存储
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          videoData.data = e.target.result;
+          videoData.type = 'file';
+          await db.watchTogetherPlaylist.add(videoData);
+          await showCustomAlert('成功', '视频已保存到播放列表');
+          document.getElementById('watch-together-save-video-modal').classList.remove('visible');
+        };
+        reader.readAsDataURL(watchTogetherState.currentVideoFile);
+      } else if (watchTogetherState.currentVideoUrl) {
+        // URL
+        videoData.data = watchTogetherState.currentVideoUrl;
+        videoData.type = 'url';
+        await db.watchTogetherPlaylist.add(videoData);
+        await showCustomAlert('成功', '视频已保存到播放列表');
+        document.getElementById('watch-together-save-video-modal').classList.remove('visible');
+      } else {
+        await showCustomAlert('错误', '未找到视频数据');
+      }
+    }
+    
+    // 打开播放列表
+    async function openPlaylist() {
+      await renderPlaylist();
+      document.getElementById('watch-together-playlist-modal').classList.add('visible');
+    }
+    
+    // 渲染播放列表
+    async function renderPlaylist() {
+      const listEl = document.getElementById('watch-together-playlist-list');
+      const videos = await db.watchTogetherPlaylist.orderBy('timestamp').reverse().toArray();
+      
+      if (videos.length === 0) {
+        listEl.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">暂无视频，上传视频后可保存到列表</p>';
+        return;
+      }
+      
+      listEl.innerHTML = videos.map(video => `
+        <div class="playlist-item" data-id="${video.id}">
+          <div class="playlist-item-info">
+            <div class="playlist-item-name">${video.name}</div>
+            <div class="playlist-item-time">${new Date(video.timestamp).toLocaleString()}</div>
+            <div class="playlist-item-type">${video.type === 'file' ? '本地文件' : '在线视频'}</div>
+          </div>
+          <div class="playlist-item-actions">
+            <button class="playlist-play-btn" onclick="playFromPlaylist(${video.id})">播放</button>
+            <button class="playlist-delete-btn" onclick="deleteFromPlaylist(${video.id})">删除</button>
+          </div>
+        </div>
+      `).join('');
+    }
+    
+    // 从播放列表播放视频
+    window.playFromPlaylist = async function(id) {
+      const video = await db.watchTogetherPlaylist.get(id);
+      if (!video) {
+        await showCustomAlert('错误', '未找到视频');
+        return;
+      }
+      
+      document.getElementById('watch-together-playlist-modal').classList.remove('visible');
+      
+      if (video.type === 'file') {
+        // 从base64恢复文件
+        const response = await fetch(video.data);
+        const blob = await response.blob();
+        const file = new File([blob], video.name, { type: blob.type });
+        loadWatchTogetherVideo(file, true);
+      } else if (video.type === 'url') {
+        loadWatchTogetherVideoFromUrl(video.data, true);
+      }
+    };
+    
+    // 从播放列表删除视频
+    window.deleteFromPlaylist = async function(id) {
+      const confirmed = await showCustomConfirm('确认删除', '确定要从播放列表中删除这个视频吗？');
+      if (confirmed) {
+        await db.watchTogetherPlaylist.delete(id);
+        await renderPlaylist();
+      }
+    };
+    
+    // ========== 播放列表功能结束 ==========
 
     // 开始监听（截图+语音识别）
     function startWatchTogetherMonitoring() {
@@ -65534,7 +66117,1159 @@ const ghSwitch = document.getElementById('github-enable-switch');
             }
         });
     }
-document.getElementById('toggle-reading-fullscreen-btn').addEventListener('click', toggleReadingFullscreen);   
+document.getElementById('toggle-reading-fullscreen-btn').addEventListener('click', toggleReadingFullscreen);
+
+// ========================================
+// ▼▼▼ 你画我猜功能（在DOMContentLoaded内部以访问state）▼▼▼
+// ========================================
+
+/**
+ * 打开你画我猜App
+ */
+function openDrawAndGuess() {
+  // 重置所有UI到初始状态
+  document.getElementById('draw-guess-interactive-area').style.display = 'none';
+  document.getElementById('draw-guess-welcome-text').style.display = 'block';
+  document.getElementById('draw-guess-studio').style.display = 'none';
+  document.getElementById('draw-guess-bottom-bar').style.display = 'none';
+  document.getElementById('start-draw-guess-game-btn').textContent = '开始游戏';
+  document.getElementById('draw-guess-dialogue-box').textContent = '';
+  document.getElementById('draw-guess-input').value = '';
+  document.getElementById('draw-guess-action-bar').style.display = 'none';
+
+  // 重置所有游戏状态
+  drawGuessState.isActive = false;
+  drawGuessState.partnerId = null;
+  drawGuessState.history = [];
+  drawGuessState.isAiResponding = false;
+  drawGuessState.messageManager = { isOpen: false, mode: null, selectedTimestamps: new Set() };
+  
+  showScreen('draw-guess-screen');
+}
+
+// 挂载到全局对象，使HTML的onclick可以调用
+window.openDrawAndGuess = openDrawAndGuess;
+
+/**
+ * 绘图板对象
+ */
+const drawingBoard = {
+  canvas: null,
+  ctx: null,
+  isDrawing: false,
+  lastX: 0,
+  lastY: 0,
+  history: [],
+  tool: 'pen',
+  color: '#000000',
+  brushSize: 5,
+  penType: 'pen',
+
+  init(canvasId) {
+    this.canvas = document.getElementById(canvasId);
+    this.ctx = this.canvas.getContext('2d');
+    this.canvas.width = this.canvas.offsetWidth;
+    this.canvas.height = this.canvas.offsetHeight;
+    this.history = [];
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.saveState();
+    this.addEventListeners();
+  },
+
+  addEventListeners() {
+    this.handleDown = this.handleDown.bind(this);
+    this.handleMove = this.handleMove.bind(this);
+    this.handleUp = this.handleUp.bind(this);
+
+    this.canvas.addEventListener('mousedown', this.handleDown);
+    this.canvas.addEventListener('mousemove', this.handleMove);
+    this.canvas.addEventListener('mouseup', this.handleUp);
+    this.canvas.addEventListener('mouseleave', this.handleUp);
+
+    this.canvas.addEventListener('touchstart', this.handleDown, { passive: false });
+    this.canvas.addEventListener('touchmove', this.handleMove, { passive: false });
+    this.canvas.addEventListener('touchend', this.handleUp);
+  },
+
+  getCoords(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+    const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top
+    };
+  },
+
+  handleDown(e) {
+    e.preventDefault();
+    this.isDrawing = true;
+    const { x, y } = this.getCoords(e);
+    [this.lastX, this.lastY] = [x, y];
+    this.ctx.beginPath();
+    this.ctx.moveTo(x, y);
+  },
+
+  handleMove(e) {
+    if (!this.isDrawing) return;
+    e.preventDefault();
+    const { x, y } = this.getCoords(e);
+    this.drawLine(this.lastX, this.lastY, x, y);
+    [this.lastX, this.lastY] = [x, y];
+  },
+
+  handleUp() {
+    if (!this.isDrawing) return;
+    this.isDrawing = false;
+    this.ctx.closePath();
+    this.saveState();
+  },
+
+  drawLine(x1, y1, x2, y2) {
+    this.ctx.beginPath();
+
+    if (this.tool === 'eraser') {
+      this.ctx.globalCompositeOperation = 'destination-out';
+      this.ctx.strokeStyle = 'rgba(0,0,0,1)';
+    } else {
+      this.ctx.globalCompositeOperation = 'source-over';
+      this.ctx.strokeStyle = this.color;
+    }
+
+    this.ctx.lineWidth = this.brushSize;
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+    
+    switch(this.penType) {
+      case 'pencil':
+        this.ctx.globalAlpha = 0.4;
+        this.ctx.lineWidth = this.brushSize * 0.5;
+        break;
+      case 'watercolor':
+        this.ctx.globalAlpha = 0.2;
+        break;
+      case 'brush':
+        this.ctx.globalAlpha = 0.8;
+        this.ctx.lineWidth = Math.random() * (this.brushSize - 2) + 2;
+        break;
+      case 'calligraphy':
+        this.ctx.globalAlpha = 1;
+        const distance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+        this.ctx.lineWidth = Math.max(this.brushSize - distance / 2, 1);
+        break;
+      case 'pen':
+      default:
+        this.ctx.globalAlpha = 1;
+        break;
+    }
+
+    this.ctx.moveTo(x1, y1);
+    this.ctx.lineTo(x2, y2);
+    this.ctx.stroke();
+    this.ctx.globalAlpha = 1.0;
+  },
+
+  saveState() {
+    if (this.history.length >= 20) {
+      this.history.shift();
+    }
+    this.history.push(this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height));
+  },
+
+  undo() {
+    if (this.history.length > 1) {
+      this.history.pop();
+      this.ctx.putImageData(this.history[this.history.length - 1], 0, 0);
+    } else {
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      this.history = [];
+      this.saveState();
+    }
+  },
+  
+  setTool(tool) {
+    this.tool = tool;
+    document.getElementById('pen-settings').style.display = tool === 'pen' ? 'block' : 'none';
+  },
+
+  setColor(color) {
+    this.color = color;
+  },
+
+  setSize(size) {
+    this.brushSize = size;
+  },
+
+  setPenType(type) {
+    this.penType = type;
+  },
+
+  clearCanvas() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.history = [];
+    this.saveState();
+  }
+};
+
+/**
+ * 选择角色并开始游戏
+ */
+async function setupDrawAndGuessSession(characterId) {
+  if (!characterId) return;
+
+  drawGuessState.isActive = true;
+  drawGuessState.partnerId = characterId;
+  drawGuessState.history = [];
+
+  const chat = state.chats[characterId];
+  if (!chat) return;
+
+  const userAvatar = chat.settings.myAvatar || defaultAvatar;
+  const userNickname = chat.settings.myNickname || '我';
+  const charAvatar = chat.settings.aiAvatar || defaultAvatar;
+  const charNickname = chat.name;
+
+  document.getElementById('draw-guess-user-avatar').src = userAvatar;
+  document.getElementById('draw-guess-user-name').textContent = userNickname;
+  document.getElementById('draw-guess-char-avatar').src = charAvatar;
+  document.getElementById('draw-guess-char-name').textContent = charNickname;
+  
+  document.getElementById('draw-guess-interactive-area').style.display = 'flex';
+  document.getElementById('draw-guess-welcome-text').style.display = 'none';
+  document.getElementById('draw-guess-bottom-bar').style.display = 'block';
+
+  showScreen('draw-guess-screen');
+
+  await triggerDrawAndGuessAiResponse(true);
+  document.getElementById('draw-guess-action-bar').style.display = 'flex';
+}
+
+/**
+ * 发送消息
+ */
+function sendDrawGuessMessage() {
+  const input = document.getElementById('draw-guess-input');
+  const content = input.value.trim();
+  if (!content || !drawGuessState.partnerId) return;
+
+  const chat = state.chats[drawGuessState.partnerId];
+  if (!chat) return;
+
+  const userMessage = {
+    sender: chat.settings.myNickname || '我',
+    content: content,
+    timestamp: Date.now()
+  };
+
+  drawGuessState.history.push(userMessage);
+  appendDrawGuessMessage(userMessage);
+
+  input.value = '';
+  handleDrawGuessInput();
+}
+
+/**
+ * 添加消息到对话框
+ */
+function appendDrawGuessMessage(msg) {
+  const dialogueBox = document.getElementById('draw-guess-dialogue-box');
+  dialogueBox.removeAttribute('data-placeholder');
+  
+  const p = document.createElement('p');
+  p.textContent = `${msg.sender}: ${msg.content}`;
+  p.style.margin = '4px 0';
+  p.style.color = 'var(--text-primary)';
+  p.dataset.timestamp = msg.timestamp;
+  dialogueBox.appendChild(p);
+  dialogueBox.scrollTop = dialogueBox.scrollHeight;
+  return p;
+}
+
+/**
+ * 处理输入框变化
+ */
+function handleDrawGuessInput() {
+  const input = document.getElementById('draw-guess-input');
+  const actionBar = document.getElementById('draw-guess-action-bar');
+  if (input.value.trim()) {
+    actionBar.style.display = 'flex';
+  } else {
+    actionBar.style.display = 'none';
+  }
+}
+
+/**
+ * 重说功能
+ */
+async function handleDrawGuessResay() {
+  const chat = state.chats[drawGuessState.partnerId];
+  if (!chat) return;
+  
+  const userNickname = chat.settings.myNickname || '我';
+  const lastAiMsgIndex = drawGuessState.history.findLastIndex(msg => msg.sender !== userNickname);
+  
+  if (lastAiMsgIndex === -1) {
+    alert("还没有AI的回复可供重说。");
+    return;
+  }
+  
+  let firstAiMsgIndex = lastAiMsgIndex;
+  while(firstAiMsgIndex > 0 && drawGuessState.history[firstAiMsgIndex - 1].sender !== userNickname) {
+    firstAiMsgIndex--;
+  }
+  
+  drawGuessState.history.splice(firstAiMsgIndex);
+  
+  const dialogueBox = document.getElementById('draw-guess-dialogue-box');
+  dialogueBox.innerHTML = '';
+  drawGuessState.history.forEach(appendDrawGuessMessage);
+}
+
+/**
+ * AI绘画动画
+ */
+async function playAiDrawingAnimation(paths) {
+  const ctx = drawingBoard.ctx;
+  if (!ctx) return;
+
+  drawingBoard.canvas.classList.remove('active');
+  drawingBoard.canvas.style.pointerEvents = 'none';
+
+  for (const path of paths) {
+    const points = path.points;
+    if (!points || points.length < 2) continue;
+    
+    ctx.strokeStyle = path.color || '#000000';
+    ctx.lineWidth = path.size || 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    ctx.beginPath();
+    ctx.moveTo(points[0][0], points[0][1]);
+
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i][0], points[i][1]);
+      ctx.stroke();
+      await new Promise(resolve => setTimeout(resolve, 50)); 
+    }
+    
+    drawingBoard.saveState();
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 500 + 200));
+  }
+
+  drawingBoard.canvas.classList.add('active');
+  drawingBoard.canvas.style.pointerEvents = 'auto';
+}
+
+/**
+ * AI决定要画什么
+ */
+async function decideAiDrawing(retryCount = 0) {
+  if (retryCount > 2) {
+    throw new Error("AI连续多次未能生成有效的绘画数据，请检查Prompt或API模型。");
+  }
+
+  const chat = state.chats[drawGuessState.partnerId];
+  const { proxyUrl, apiKey, model } = state.apiConfig;
+  
+  const mainChatHistory = chat.history.slice(-5).map(msg => `${msg.role === 'user' ? (chat.settings.myNickname || '我') : chat.name}: ${String(msg.content)}`).join('\\n');
+  const drawGuessHistory = drawGuessState.history.map(msg => `${msg.sender}: ${msg.content}`).join('\\n');
+
+  const systemPrompt = `# 你的任务
+你正在和用户玩"你画我猜"游戏，现在轮到你画画了。你的任务是：
+1. 根据你的人设、你们的对话历史，想一个【简单、可以用几笔画出来】的物体或概念。
+2. 将这个物体的绘画过程，描述成一个由坐标和颜色组成的JSON数据。
+
+# 核心规则
+1. **主题简单**: 必须选择非常简单的、能用几笔线条就勾勒出轮廓的物体。例如：苹果、太阳、爱心、鱼、猫的简笔画轮廓、房子。
+2. **绘画简洁**: 整个绘画过程的【总笔画数（paths数组的长度）不能超过15笔】。
+3. **格式铁律**: 你的回复【必须且只能】是一个JSON对象。格式如下:
+{
+  "topic": "你画的这个东西的中文名，例如：一只猫",
+  "paths": [
+    { "color": "#000000", "size": 3, "points": [[x1, y1], [x2, y2], [x3, y3]] },
+    { "color": "#ff3b30", "size": 5, "points": [[x4, y4], [x5, y5]] }
+  ]
+}
+
+# 供你参考的上下文
+- **你的角色设定**: ${chat.settings.aiPersona}
+- **你们在主聊天里的对话**: ${mainChatHistory || '无'}
+- **你们在这个游戏里的对话**: ${drawGuessHistory || '无'}
+
+现在，请构思一个简单的物体，并生成它的绘画路径JSON。`;
+
+  let messagesForApi;
+  if (retryCount > 0) {
+    messagesForApi = [{ role: 'user', content: `你上次的回复格式不正确，请严格遵守"格式铁律"，只返回一个纯粹的JSON对象，不要添加任何额外的文字。现在请重新生成。` }];
+  } else {
+    messagesForApi = [{ role: 'user', content: "轮到你画了，请决定要画什么并给出绘画数据。" }];
+  }
+
+  let isGemini = proxyUrl.includes('generativelanguage');
+  let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesForApi);
+  
+  const response = isGemini 
+    ? await fetch(geminiConfig.url, geminiConfig.data) 
+    : await fetch(`${proxyUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`},
+        body: JSON.stringify({ model, messages: [{role: 'system', content: systemPrompt}, ...messagesForApi], temperature: 1.0, response_format: { "type": "json_object" } })
+      });
+      
+  if (!response.ok) throw new Error(`API 错误: ${response.statusText}`);
+  const data = await response.json();
+  const aiResponseContent = getGeminiResponseText(data);
+  
+  try {
+    const parsedJson = robustJsonParse(aiResponseContent);
+    if (!parsedJson || !parsedJson.topic || !Array.isArray(parsedJson.paths)) {
+      throw new Error('解析出的JSON缺少必要的topic或paths字段。');
+    }
+    return parsedJson;
+  } catch (e) {
+    console.error(`AI绘画数据解析失败 (第 ${retryCount + 1} 次尝试):`, e);
+    console.error("AI原始返回内容:", aiResponseContent);
+    return decideAiDrawing(retryCount + 1);
+  }
+}
+
+/**
+ * 轮到AI画画
+ */
+async function handleAiTurnToDraw() {
+  if (drawGuessState.isAiResponding) return;
+
+  await showCustomAlert("请稍候...", "对方正在思考要画什么...");
+
+  try {
+    document.getElementById('draw-guess-welcome-text').style.display = 'none';
+    document.getElementById('draw-guess-studio').style.display = 'flex';
+    document.getElementById('drawing-canvas').classList.add('active');
+
+    drawingBoard.ctx.clearRect(0, 0, drawingBoard.canvas.width, drawingBoard.canvas.height);
+    drawingBoard.history = [];
+    drawingBoard.saveState();
+    
+    const drawingData = await decideAiDrawing();
+    if (!drawingData || !drawingData.paths) throw new Error("AI未能决定要画什么或返回了无效的绘画数据。");
+
+    await playAiDrawingAnimation(drawingData.paths);
+
+    await showCustomAlert("他画完啦！", "快在上面的对话框里猜猜看他画的是什么吧！");
+    
+    const hiddenMessageForAi = {
+      role: 'system',
+      content: `[系统提示：你刚刚画完了一幅关于"${drawingData.topic}"的画。现在轮到用户猜测了，请根据TA的猜测给出回应。]`,
+      timestamp: Date.now(),
+      isHidden: true
+    };
+    const chat = state.chats[drawGuessState.partnerId];
+    chat.history.push(hiddenMessageForAi);
+    await db.chats.put(chat);
+
+  } catch (error) {
+    console.error("AI绘画流程出错:", error);
+    await showCustomAlert("出错了", `AI在绘画时遇到了问题: ${error.message}`);
+    document.getElementById('draw-guess-studio').style.display = 'flex';
+    document.getElementById('draw-guess-welcome-text').style.display = 'none';
+  }
+}
+
+/**
+ * AI出题功能
+ */
+async function handleGetTopicFromAi() {
+  if (!drawGuessState.partnerId) return;
+  
+  const chat = state.chats[drawGuessState.partnerId];
+  const { proxyUrl, apiKey, model } = state.apiConfig;
+  const userNickname = chat.settings.myNickname || '我';
+  
+  // 获取上下文信息
+  const aiPersona = chat.settings.aiPersona || '一个友好的对话伙伴';
+  const myPersona = chat.settings.myPersona || '用户';
+  
+  const worldBookContext = (chat.settings.linkedWorldBookIds || []).map(bookId => 
+    state.worldBooks.find(wb => wb.id === bookId)
+  ).filter(Boolean).map(book => 
+    `## 世界书《${book.name}》设定:\n${book.content.filter(e => e.enabled).map(e => `- ${e.content}`).join('\n')}`
+  ).join('\n');
+  
+  const longTermMemory = chat.longTermMemory && chat.longTermMemory.length > 0 
+    ? chat.longTermMemory.map(mem => `- ${mem.content}`).join('\n')
+    : '';
+  
+  const shortTermMemory = chat.history.slice(-10).map(msg => 
+    `${msg.role === 'user' ? userNickname : chat.name}: ${String(msg.content)}`
+  ).join('\n');
+  
+  let systemPrompt;
+  if (drawGuessState.mode === 'online') {
+    systemPrompt = `你现在扮演: ${chat.name}
+你的人设: ${aiPersona}
+
+用户名: ${userNickname}
+用户人设: ${myPersona}
+
+你正在通过【线上聊天】和${userNickname}玩"你画我猜"游戏。用户让你出一个绘画题目。
+
+# 供你参考的上下文
+世界观: ${worldBookContext || '（暂无）'}
+长期记忆: ${longTermMemory || '（暂无）'}
+最近对话: ${shortTermMemory || '（暂无）'}
+
+# 要求
+1. 给用户出一个简单的绘画题目（可以用简笔画画出来的物体或概念）
+2. 用自然的线上聊天方式邀请TA画
+3. 可以分成多条消息，每条不超过30字
+4. 不要有任何线下动作描写
+
+请直接回复你想说的内容，如果有多条消息用换行符分隔。格式例如：
+"诶！"
+"我想到一个简单的~"
+"你来画一个苹果吧！"`;
+  } else {
+    systemPrompt = `你正在和${userNickname}玩"你画我猜"游戏。请给用户出一个简单的绘画题目（一个可以用简笔画画出来的物体或概念），并用一句话向TA发出邀请。
+
+你的人设: ${aiPersona}
+用户人设: ${myPersona}
+
+供你参考的上下文:
+世界观: ${worldBookContext || '（暂无）'}
+长期记忆: ${longTermMemory || '（暂无）'}
+最近对话: ${shortTermMemory || '（暂无）'}
+
+请直接回复，格式例如："来，画一个苹果吧！"`;
+  }
+  
+  const messagesForApi = [{ role: 'user', content: "请给我出个题吧" }];
+  
+  let isGemini = proxyUrl.includes('generativelanguage');
+  let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesForApi);
+  
+  try {
+    const response = isGemini 
+      ? await fetch(geminiConfig.url, geminiConfig.data) 
+      : await fetch(`${proxyUrl}/v1/chat/completions`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`},
+          body: JSON.stringify({ model, messages: [{role: 'system', content: systemPrompt}, ...messagesForApi] })
+        });
+        
+    if (!response.ok) throw new Error(`API 错误: ${response.statusText}`);
+    const data = await response.json();
+    const aiTopic = getGeminiResponseText(data);
+    
+    // 处理回复（线上模式支持多条消息）
+    if (drawGuessState.mode === 'online') {
+      const messages = aiTopic.split('\n').filter(msg => msg.trim());
+      for (const msgContent of messages) {
+        const aiMessage = {
+          sender: chat.name,
+          content: msgContent.trim(),
+          timestamp: Date.now()
+        };
+        drawGuessState.history.push(aiMessage);
+        appendDrawGuessMessage(aiMessage);
+        if (messages.length > 1) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+      }
+    } else {
+      const aiMessage = {
+        sender: chat.name,
+        content: aiTopic,
+        timestamp: Date.now()
+      };
+      drawGuessState.history.push(aiMessage);
+      appendDrawGuessMessage(aiMessage);
+    }
+    
+  } catch (error) {
+    console.error("AI出题失败:", error);
+    await showCustomAlert("出题失败", `无法获取题目: ${error.message}`);
+  }
+}
+
+/**
+ * 触发AI响应
+ */
+async function triggerDrawAndGuessAiResponse(isInitial = false, imageBase64 = null) {
+  if (drawGuessState.isAiResponding || !drawGuessState.isActive || !drawGuessState.partnerId) return;
+
+  drawGuessState.isAiResponding = true;
+  
+  const dialogueBox = document.getElementById('draw-guess-dialogue-box');
+  if (dialogueBox.childElementCount === 0) {
+    dialogueBox.setAttribute('data-placeholder', '对方正在思考...');
+  }
+
+  try {
+    const { proxyUrl, apiKey, model } = state.apiConfig;
+    if (!proxyUrl || !apiKey || !model) throw new Error('API未配置');
+
+    const chat = state.chats[drawGuessState.partnerId];
+    const userNickname = chat.settings.myNickname || '我';
+    
+    // 构建更完整的上下文信息
+    
+    // 1. 双方人设
+    const aiPersona = chat.settings.aiPersona || '一个友好的对话伙伴';
+    const myPersona = chat.settings.myPersona || '用户';
+    
+    // 2. 世界书
+    const worldBookContext = (chat.settings.linkedWorldBookIds || []).map(bookId => 
+      state.worldBooks.find(wb => wb.id === bookId)
+    ).filter(Boolean).map(book => 
+      `## 世界书《${book.name}》设定:\n${book.content.filter(e => e.enabled).map(e => `- ${e.content}`).join('\n')}`
+    ).join('\n');
+    
+    // 3. 长期记忆
+    const longTermMemory = chat.longTermMemory && chat.longTermMemory.length > 0 
+      ? chat.longTermMemory.map(mem => `- ${mem.content}`).join('\n')
+      : '';
+    
+    // 4. 短期记忆（主聊天最近的对话）
+    const shortTermMemory = chat.history.slice(-15).map(msg => 
+      `${msg.role === 'user' ? userNickname : chat.name}: ${String(msg.content)}`
+    ).join('\n');
+    
+    // 5. 挂载的聊天记录
+    let linkedChatsContext = '';
+    if (chat.settings.linkedChatIds && chat.settings.linkedChatIds.length > 0) {
+      const linkedMemories = [];
+      for (const linkedId of chat.settings.linkedChatIds) {
+        const linkedChat = state.chats[linkedId];
+        if (linkedChat && linkedChat.history.length > 0) {
+          const recentMessages = linkedChat.history.slice(-5).map(msg => 
+            `${msg.role === 'user' ? userNickname : linkedChat.name}: ${String(msg.content)}`
+          ).join('\n');
+          linkedMemories.push(`\n### 关联聊天记录（来自 ${linkedChat.name}）:\n${recentMessages}`);
+        }
+      }
+      linkedChatsContext = linkedMemories.join('\n');
+    }
+    
+    // 6. 游戏内对话历史
+    const drawGuessHistory = drawGuessState.history.map(msg => `${msg.sender}: ${msg.content}`).join('\n');
+    
+    const canvasContentDescription = imageBase64 ? "(用户刚刚画完了一幅画，图片内容如下，请你猜测。)" : "(当前画板为空)";
+
+    let systemPrompt;
+    
+    if (drawGuessState.mode === 'online') {
+      // 线上模式：无线下描写，支持多条消息
+      let finalInstruction;
+      if (isInitial) {
+        finalInstruction = '这是你们第一次在线上打开这个游戏。请你主动说几句话，比如打个招呼、表达对游戏的期待、或者提议游戏规则。';
+      } else if (imageBase64) {
+        finalInstruction = '用户刚刚在线上发来了一幅画。请你根据图片内容、你的人设和对话历史，开始你的猜测。你可以先描述你看到了什么，然后提出可能的答案。';
+      } else {
+        finalInstruction = '请根据对话历史自然回应。';
+      }
+      
+      systemPrompt = `# 你的身份
+你现在扮演: ${chat.name}
+你的人设: ${aiPersona}
+
+# 用户的身份
+用户名: ${userNickname}
+用户人设: ${myPersona}
+
+# 当前情况
+你正在通过【线上聊天】和${userNickname}玩"你画我猜"游戏。这是一个线上互动，你们不在同一个地点。
+画板内容: ${canvasContentDescription}
+
+# 【对话节奏铁律（至关重要！）】
+你的回复【必须】模拟真人在线聊天的打字习惯。**绝对不要一次性发送一大段文字！** 你应该将你想说的话，拆分成【多条、简短的】消息来发送，每条消息最好不要超过30个字。这会让对话看起来更自然、更真实。
+
+举例：
+- ❌ 错误："哇！你画的这个真有意思，让我想想...这个圆圆的形状，还有上面的小点，会不会是一个苹果？不对，感觉更像是一个太阳呢！"
+- ✅ 正确：
+  消息1: "哇！你画的这个真有意思"
+  消息2: "让我想想..."
+  消息3: "这个圆圆的形状"
+  消息4: "还有上面的小点"
+  消息5: "会不会是一个苹果？"
+  消息6: "不对，感觉更像是一个太阳呢！"
+
+# 核心规则
+1. **【线上场景】**: 你们在线上聊天，不在同一个地点。【禁止】出现任何线下见面的描写，如"走过来"、"拿起笔"、"看向你"等动作描述。
+2. **【纯文字交流】**: 你只能通过文字表达，可以使用语气词、表情符号，但不能描述肢体动作或表情。
+3. **【多条消息】**: 你的回复应该自然地拆分成多条消息，就像真人在线聊天时的节奏。
+
+# 供你参考的上下文
+
+## 世界观设定
+${worldBookContext || '（暂无）'}
+
+## 长期记忆（你们之间的重要记忆）
+${longTermMemory || '（暂无）'}
+${linkedChatsContext}
+
+## 短期记忆（你们最近在主聊天的对话）
+${shortTermMemory || '（暂无）'}
+
+## 游戏内对话（本次游戏中的对话）
+${drawGuessHistory || '（游戏刚开始）'}
+
+# 你的任务
+${finalInstruction}
+
+请直接回复你想说的内容，将你的话自然地分成多条消息。每条消息之间用换行符（\n）分隔。不要加任何JSON格式或前缀后缀。`;
+    } else {
+      // 线下模式：保留原有的提示词（有线下描写）
+      let finalInstruction;
+      if (isInitial) {
+        finalInstruction = '这是你们第一次打开这个游戏。请你主动说几句话，比如打个招呼、表达对游戏的期待、或者制定游戏规则，来开启这场游戏。';
+      } else if (imageBase64) {
+        finalInstruction = '用户刚刚画完了一幅画，图片内容已提供。请你根据图片内容、你的人设和对话历史，开始你的猜测。你的猜测过程应该像真人一样，可以先描述你看到了什么，然后提出可能的答案，可以是对的也可以是错的。';
+      } else {
+        finalInstruction = '请根据对话历史自然回应。';
+      }
+      
+      systemPrompt = `# 你的身份
+你现在扮演: ${chat.name}
+你的人设: ${aiPersona}
+
+# 用户的身份
+用户名: ${userNickname}
+用户人设: ${myPersona}
+
+# 当前情况
+你正在和${userNickname}玩"你画我猜"游戏。
+画板内容: ${canvasContentDescription}
+
+# 供你参考的上下文
+
+## 世界观设定
+${worldBookContext || '（暂无）'}
+
+## 长期记忆（你们之间的重要记忆）
+${longTermMemory || '（暂无）'}
+${linkedChatsContext}
+
+## 短期记忆（你们最近在主聊天的对话）
+${shortTermMemory || '（暂无）'}
+
+## 游戏内对话（本次游戏中的对话）
+${drawGuessHistory || '（游戏刚开始）'}
+
+# 你的任务
+${finalInstruction}
+
+请直接回复，不要加任何前缀或后缀。`;
+    }
+
+  let messagesForApi = imageBase64 
+    ? [{ role: 'user', content: [{ type: 'text', text: '你看我画了什么？' }, { type: 'image_url', image_url: { url: imageBase64 } }] }]
+    : [{ role: 'user', content: drawGuessState.history.length > 0 ? drawGuessState.history[drawGuessState.history.length - 1].content : '开始游戏吧' }];
+
+  let isGemini = proxyUrl.includes('generativelanguage');
+  let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesForApi);
+    
+    const response = isGemini 
+      ? await fetch(geminiConfig.url, geminiConfig.data) 
+      : await fetch(`${proxyUrl}/v1/chat/completions`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`},
+          body: JSON.stringify({ model, messages: [{role: 'system', content: systemPrompt}, ...messagesForApi] })
+        });
+        
+    if (!response.ok) throw new Error(`API 错误: ${response.statusText}`);
+    const data = await response.json();
+    const aiReply = getGeminiResponseText(data);
+
+    // 处理AI回复
+    if (drawGuessState.mode === 'online') {
+      // 线上模式：拆分成多条消息
+      const messages = aiReply.split('\n').filter(msg => msg.trim());
+      
+      for (const msgContent of messages) {
+        const aiMessage = {
+          sender: chat.name,
+          content: msgContent.trim(),
+          timestamp: Date.now()
+        };
+        drawGuessState.history.push(aiMessage);
+        appendDrawGuessMessage(aiMessage);
+        
+        // 添加短暂延迟，模拟打字效果
+        if (messages.length > 1) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+      }
+    } else {
+      // 线下模式：保持原有逻辑（单条消息）
+      const aiMessage = {
+        sender: chat.name,
+        content: aiReply,
+        timestamp: Date.now()
+      };
+      drawGuessState.history.push(aiMessage);
+      appendDrawGuessMessage(aiMessage);
+    }
+
+  } catch (error) {
+    console.error("AI响应失败:", error);
+    await showCustomAlert("AI响应失败", `无法获取回复: ${error.message}`);
+  } finally {
+    drawGuessState.isAiResponding = false;
+    dialogueBox.removeAttribute('data-placeholder');
+  }
+}
+
+/**
+ * 提交画作让AI猜
+ */
+async function submitDrawingToAi() {
+  const tempCanvas = document.createElement('canvas');
+  const tempCtx = tempCanvas.getContext('2d');
+  tempCanvas.width = drawingBoard.canvas.width;
+  tempCanvas.height = drawingBoard.canvas.height;
+  tempCtx.fillStyle = '#FFFFFF';
+  tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+  
+  if (drawingBoard.canvas.toDataURL() === tempCanvas.toDataURL()) {
+    alert("画板上还没有内容哦，快来画点什么吧！");
+    return;
+  }
+  
+  const chat = state.chats[drawGuessState.partnerId];
+  if (chat) {
+    await showCustomAlert("提交成功", `已经把你的画作提交给"${chat.name}"了！\\nTA正在努力猜测中...`);
+  }
+  
+  const drawingBase64 = drawingBoard.canvas.toDataURL('image/png');
+  await triggerDrawAndGuessAiResponse(false, drawingBase64);
+
+  drawingBoard.ctx.clearRect(0, 0, drawingBoard.canvas.width, drawingBoard.canvas.height);
+  drawingBoard.history = [];
+  drawingBoard.saveState();
+  document.getElementById('start-draw-guess-game-btn').textContent = '提交画作';
+}
+
+/**
+ * 打开消息管理弹窗
+ */
+function openDrawGuessMessageManager(mode) {
+  const modal = document.getElementById('draw-guess-message-manager-modal');
+  const titleEl = document.getElementById('draw-guess-manager-title');
+  const confirmBtn = document.getElementById('draw-guess-manager-confirm-btn');
+  const listEl = document.getElementById('draw-guess-manager-list');
+  listEl.innerHTML = '';
+
+  titleEl.textContent = mode === 'edit' ? '选择要编辑的消息' : '选择要删除的消息';
+  confirmBtn.textContent = mode === 'edit' ? '开始编辑' : '确认删除';
+  confirmBtn.classList.toggle('btn-danger', mode === 'delete');
+
+  drawGuessState.history.forEach(msg => {
+    const item = document.createElement('div');
+    item.className = 'contact-picker-item';
+    item.dataset.timestamp = msg.timestamp;
+    item.innerHTML = `
+      <div class="checkbox"></div>
+      <div class="info" style="display: block;">
+        <p style="margin:0; font-weight:500;">${msg.sender}:</p>
+        <p style="margin:0; color: #8a8a8a;">${msg.content.substring(0, 30)}...</p>
+      </div>
+    `;
+    listEl.appendChild(item);
+  });
+  
+  drawGuessState.messageManager.mode = mode;
+  drawGuessState.messageManager.selectedTimestamps.clear();
+  modal.classList.add('visible');
+}
+
+/**
+ * 处理消息管理确认
+ */
+async function handleMessageManagerConfirm() {
+  const { mode, selectedTimestamps } = drawGuessState.messageManager;
+  if (selectedTimestamps.size === 0) {
+    alert("请至少选择一条消息。");
+    return;
+  }
+
+  if (mode === 'delete') {
+    drawGuessState.history = drawGuessState.history.filter(m => !selectedTimestamps.has(m.timestamp));
+    const dialogueBox = document.getElementById('draw-guess-dialogue-box');
+    dialogueBox.innerHTML = '';
+    drawGuessState.history.forEach(appendDrawGuessMessage);
+  } else if (mode === 'edit') {
+    if (selectedTimestamps.size > 1) {
+      alert("编辑模式下只能选择一条消息。");
+      return;
+    }
+    const timestampToEdit = [...selectedTimestamps][0];
+    const msgIndex = drawGuessState.history.findIndex(m => m.timestamp === timestampToEdit);
+    if (msgIndex > -1) {
+      const currentContent = drawGuessState.history[msgIndex].content;
+      const newContent = await showCustomPrompt('编辑消息', '', currentContent, 'textarea');
+      if (newContent !== null) {
+        drawGuessState.history[msgIndex].content = newContent.trim();
+        const dialogueBox = document.getElementById('draw-guess-dialogue-box');
+        dialogueBox.innerHTML = '';
+        drawGuessState.history.forEach(appendDrawGuessMessage);
+      }
+    }
+  }
+
+  document.getElementById('draw-guess-message-manager-modal').classList.remove('visible');
+  drawGuessState.messageManager.selectedTimestamps.clear();
+}
+
+/**
+ * 初始化"你画我猜"事件监听器
+ */
+function initDrawAndGuessListeners() {
+  // 设置按钮
+  const settingsBtn = document.getElementById('draw-guess-settings-btn');
+  if (settingsBtn) {
+    settingsBtn.addEventListener('click', () => {
+      // 打开设置弹窗
+      const modal = document.getElementById('draw-guess-settings-modal');
+      const onlineRadio = document.getElementById('draw-guess-mode-online');
+      const offlineRadio = document.getElementById('draw-guess-mode-offline');
+      
+      // 设置当前选中的模式
+      if (drawGuessState.mode === 'online') {
+        onlineRadio.checked = true;
+      } else {
+        offlineRadio.checked = true;
+      }
+      
+      modal.classList.add('visible');
+    });
+  }
+
+  // 设置弹窗 - 保存按钮
+  const settingsSaveBtn = document.getElementById('draw-guess-settings-save-btn');
+  if (settingsSaveBtn) {
+    settingsSaveBtn.addEventListener('click', () => {
+      const onlineRadio = document.getElementById('draw-guess-mode-online');
+      drawGuessState.mode = onlineRadio.checked ? 'online' : 'offline';
+      
+      document.getElementById('draw-guess-settings-modal').classList.remove('visible');
+      console.log('游戏模式已切换为:', drawGuessState.mode);
+    });
+  }
+
+  // 设置弹窗 - 取消按钮
+  const settingsCancelBtn = document.getElementById('draw-guess-settings-cancel-btn');
+  if (settingsCancelBtn) {
+    settingsCancelBtn.addEventListener('click', () => {
+      document.getElementById('draw-guess-settings-modal').classList.remove('visible');
+    });
+  }
+
+  // 选择角色按钮
+  const selectCharBtn = document.getElementById('draw-guess-select-char-btn');
+  if (selectCharBtn) {
+    selectCharBtn.addEventListener('click', async () => {
+      const characters = Object.values(state.chats).filter(chat => !chat.isGroup);
+      if (characters.length === 0) {
+        alert("还没有可以一起玩的角色哦~");
+        return;
+      }
+      
+      const options = characters.map(char => ({ text: char.name, value: char.id }));
+      const selectedId = await showChoiceModal('选择游戏伙伴', options);
+      if (selectedId) {
+        await setupDrawAndGuessSession(selectedId);
+      }
+    });
+  }
+
+  // 开始游戏/提交画作按钮
+  const startBtn = document.getElementById('start-draw-guess-game-btn');
+  if (startBtn) {
+    startBtn.addEventListener('click', async () => {
+      if (!drawGuessState.isActive) return;
+      
+      const btnText = startBtn.textContent;
+      if (btnText === '开始游戏') {
+        document.getElementById('draw-guess-studio').style.display = 'flex';
+        document.getElementById('draw-guess-welcome-text').style.display = 'none';
+        drawingBoard.init('drawing-canvas');
+        document.getElementById('drawing-canvas').classList.add('active');
+        startBtn.textContent = '提交画作';
+      } else if (btnText === '提交画作') {
+        await submitDrawingToAi();
+      }
+    });
+  }
+
+  // 发送消息按钮
+  const sendBtn = document.getElementById('draw-guess-send-btn');
+  if (sendBtn) {
+    sendBtn.addEventListener('click', sendDrawGuessMessage);
+  }
+
+  // 输入框回车发送
+  const input = document.getElementById('draw-guess-input');
+  if (input) {
+    input.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendDrawGuessMessage();
+    });
+    input.addEventListener('input', handleDrawGuessInput);
+  }
+
+  // AI出题按钮
+  const getTopicBtn = document.getElementById('draw-guess-get-topic-btn');
+  if (getTopicBtn) {
+    getTopicBtn.addEventListener('click', handleGetTopicFromAi);
+  }
+
+  // 轮到AI画画按钮
+  const aiTurnBtn = document.getElementById('draw-guess-ai-turn-btn');
+  if (aiTurnBtn) {
+    aiTurnBtn.addEventListener('click', handleAiTurnToDraw);
+  }
+
+  // 颜色选择
+  document.querySelectorAll('.color-dot').forEach(dot => {
+    dot.addEventListener('click', () => {
+      document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+      dot.classList.add('active');
+      const color = dot.dataset.color;
+      drawingBoard.setColor(color);
+      document.getElementById('custom-color-input').value = color;
+    });
+  });
+
+  // 自定义颜色选择器
+  const customColorInput = document.getElementById('custom-color-input');
+  if (customColorInput) {
+    customColorInput.addEventListener('change', (e) => {
+      const color = e.target.value;
+      drawingBoard.setColor(color);
+      document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+    });
+  }
+
+  // 工具按钮
+  document.querySelectorAll('.tool-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tool = btn.dataset.tool;
+      if (tool === 'undo') {
+        drawingBoard.undo();
+      } else if (tool === 'clear') {
+        if (confirm('确定要清空画板吗？')) {
+          drawingBoard.clearCanvas();
+        }
+      } else {
+        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        drawingBoard.setTool(tool);
+      }
+    });
+  });
+
+  // 画笔大小
+  const sizeSlider = document.getElementById('brush-size-slider');
+  const sizeInput = document.getElementById('brush-size-input');
+  if (sizeSlider && sizeInput) {
+    sizeSlider.addEventListener('input', (e) => {
+      const size = parseInt(e.target.value);
+      sizeInput.value = size;
+      drawingBoard.setSize(size);
+    });
+    sizeInput.addEventListener('change', (e) => {
+      const size = parseInt(e.target.value);
+      sizeSlider.value = size;
+      drawingBoard.setSize(size);
+    });
+  }
+
+  // 画笔类型
+  const penTypeSelect = document.getElementById('pen-type-select');
+  if (penTypeSelect) {
+    penTypeSelect.addEventListener('change', (e) => {
+      drawingBoard.setPenType(e.target.value);
+    });
+  }
+
+  // 操作栏按钮
+  const actionBar = document.getElementById('draw-guess-action-bar');
+  if (actionBar) {
+    actionBar.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.action-bar-btn');
+      if (!btn) return;
+      
+      const action = btn.dataset.action;
+      if (action === 'reply') {
+        await triggerDrawAndGuessAiResponse();
+      } else if (action === 'delete') {
+        openDrawGuessMessageManager('delete');
+      } else if (action === 'edit') {
+        openDrawGuessMessageManager('edit');
+      } else if (action === 'resay') {
+        await handleDrawGuessResay();
+      }
+    });
+  }
+
+  // 消息管理弹窗
+  const managerCancelBtn = document.getElementById('draw-guess-manager-cancel-btn');
+  const managerConfirmBtn = document.getElementById('draw-guess-manager-confirm-btn');
+  const managerSelectAll = document.getElementById('draw-guess-manager-select-all');
+  
+  if (managerCancelBtn) {
+    managerCancelBtn.addEventListener('click', () => {
+      document.getElementById('draw-guess-message-manager-modal').classList.remove('visible');
+      drawGuessState.messageManager.selectedTimestamps.clear();
+    });
+  }
+  
+  if (managerConfirmBtn) {
+    managerConfirmBtn.addEventListener('click', handleMessageManagerConfirm);
+  }
+  
+  if (managerSelectAll) {
+    managerSelectAll.addEventListener('change', (e) => {
+      const isChecked = e.target.checked;
+      document.querySelectorAll('#draw-guess-manager-list .contact-picker-item').forEach(item => {
+        item.classList.toggle('selected', isChecked);
+        const timestamp = parseFloat(item.dataset.timestamp);
+        if (isChecked) {
+          drawGuessState.messageManager.selectedTimestamps.add(timestamp);
+        } else {
+          drawGuessState.messageManager.selectedTimestamps.delete(timestamp);
+        }
+      });
+    });
+  }
+
+  // 消息列表点击选择
+  const managerList = document.getElementById('draw-guess-manager-list');
+  if (managerList) {
+    managerList.addEventListener('click', (e) => {
+      const item = e.target.closest('.contact-picker-item');
+      if (item) {
+        const timestamp = parseFloat(item.dataset.timestamp);
+        if (drawGuessState.messageManager.mode === 'edit') {
+          document.querySelectorAll('#draw-guess-manager-list .contact-picker-item.selected').forEach(el => el.classList.remove('selected'));
+          drawGuessState.messageManager.selectedTimestamps.clear();
+        }
+        item.classList.toggle('selected');
+        if (drawGuessState.messageManager.selectedTimestamps.has(timestamp)) {
+          drawGuessState.messageManager.selectedTimestamps.delete(timestamp);
+        } else {
+          drawGuessState.messageManager.selectedTimestamps.add(timestamp);
+        }
+      }
+    });
+  }
+}
+
+// 初始化你画我猜功能
+initDrawAndGuessListeners();
+
+// ▲▲▲ 你画我猜功能结束 ▲▲▲
+   
 // 2. 绑定确认和取消按钮事件 (请将此段代码放在 init() 函数中，或者脚本底部的事件监听区域)
 document.addEventListener('DOMContentLoaded', () => {
     // ... 其他初始化代码 ...
